@@ -1,6 +1,8 @@
 // Site copy, adapted from the Backyard brand guide. Edit freely.
 
 export const brand = {
+  // Browser tab titles, link previews and search results.
+  siteName: "Backyard SG",
   line: "a shared home where we eat, serve and love",
   personality: ["homely", "welcoming", "informal", "playful", "hosting-minded"],
 };
