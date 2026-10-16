@@ -29,13 +29,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   applicationName: brand.siteName,
   title: {
-    default: `${brand.siteName} — ${event.shortName.toLowerCase()}`,
+    default: brand.siteName,
     template: `%s · ${brand.siteName}`,
   },
   description: `${brand.line}. ${event.tagline.join(" | ")}. Join us at ${event.venue.name}.`,
   openGraph: {
     siteName: brand.siteName,
-    title: `${brand.siteName} — ${event.shortName.toLowerCase()}`,
+    title: brand.siteName,
     description: `${event.tagline.join(" | ")} — ${brand.line}.`,
     type: "website",
     locale: "en_SG",
