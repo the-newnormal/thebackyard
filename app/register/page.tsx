@@ -123,6 +123,15 @@ async function RegistrationGate() {
           let you know if a spot opens up.
         </p>
       )}
+      {availability.state === "open" &&
+        availability.spotsLeft !== null &&
+        availability.spotsLeft <= event.maxGuests && (
+          <p className="-mt-4 mb-8 rounded-xl bg-mustard/30 px-4 py-3 text-ink">
+            {availability.spotsLeft === 1
+              ? "If you’re bringing friends, you’ll join the waitlist."
+              : `Groups of more than ${availability.spotsLeft} will join the waitlist.`}
+          </p>
+        )}
       <RegistrationForm waitlist={waitlist} />
     </>
   );

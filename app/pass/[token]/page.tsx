@@ -53,9 +53,8 @@ async function Pass({
       {query.new && registration.status !== "cancelled" && (
         <p className="mb-6 rounded-2xl bg-lime px-5 py-4 text-center font-semibold text-forest-deep">
           {registration.status === "waitlist"
-            ? "You’re on the waitlist."
-            : "You’re registered!"}{" "}
-          Screenshot or bookmark this page — it’s your pass.
+            ? "You’re on the waitlist. Bookmark this page — it’ll show if you get a spot."
+            : "You’re registered! Screenshot or bookmark this page — it’s your pass."}
         </p>
       )}
       {query.existing && registration.status !== "cancelled" && (

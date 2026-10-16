@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { event } from "@/content/event";
 import { requireAdmin } from "@/lib/admin-auth";
+import { isEmailConfigured } from "@/lib/email";
 import { eventDateLong } from "@/lib/format";
 import {
   DIETARY_OPTIONS,
@@ -124,6 +125,13 @@ async function Dashboard() {
           tone="bg-card text-forest border-2 border-forest/15"
         />
       </div>
+
+      {waitlist.length > 0 && !isEmailConfigured() && (
+        <p className="mt-3 rounded-2xl bg-mustard/30 px-5 py-4 text-ink">
+          Emails are off, so “Give a spot” doesn’t notify anyone. Message the guest yourself —
+          their email and phone are in the list below.
+        </p>
+      )}
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <Breakdown
