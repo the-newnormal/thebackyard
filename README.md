@@ -47,9 +47,10 @@ table is created automatically on first use.
 1. Import this repo into Vercel.
 2. Add a Postgres database (e.g. Neon from the Vercel Marketplace). It sets
    `DATABASE_URL`/`POSTGRES_URL` for you.
-3. Set `ADMIN_PASSWORD` (12+ characters) and `SESSION_SECRET` (a long random
-   value); optionally `EVENT_CAPACITY` and `RESEND_API_KEY` + `EMAIL_FROM`.
-   See `.env.example`.
+3. Set `ADMIN_PASSWORD` (12+ characters), `SESSION_SECRET` and
+   `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (each `openssl rand -base64 32`; the
+   last keeps forms that were open during a redeploy working); optionally
+   `EVENT_CAPACITY` and `RESEND_API_KEY` + `EMAIL_FROM`. See `.env.example`.
    Put the functions in the same region as the database (Project Settings →
    Functions → Region, e.g. `sin1` for a Singapore database).
 4. Deploy. On Vercel the app refuses to fall back to the local file store, so a
