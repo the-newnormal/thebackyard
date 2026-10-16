@@ -1,15 +1,23 @@
 import { brand, model, moreThan, whyBackyard, whyBbq } from "@/content/copy";
 import { Plate, ScribbleArrow, Starburst } from "../shapes";
 
+/** Renders **marked** parts of a copy string in bold. */
+function withBold(text: string) {
+  return text
+    .split(/\*\*(.+?)\*\*/g)
+    .map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part));
+}
+
 export function WhyBackyard() {
   return (
     <section id="why" className="relative overflow-hidden py-24 sm:py-32">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="text-center">
-          <p className="font-brush text-[clamp(6rem,22vw,15rem)] leading-[0.8] text-forest drop-shadow-[0_4px_6px_rgb(31_64_41/0.18)]">
+          {/* Bottom padding leaves room for the "y" descender above the line below. */}
+          <p className="pb-[0.15em] font-brush text-[clamp(6rem,22vw,15rem)] leading-[0.8] text-forest drop-shadow-[0_4px_6px_rgb(31_64_41/0.18)]">
             backyard
           </p>
-          <p className="relative -mt-[0.2em] font-serif text-[clamp(1.6rem,4.5vw,3rem)] text-forest italic">
+          <p className="relative font-serif text-[clamp(1.6rem,4.5vw,3rem)] text-forest italic">
             {brand.line}
           </p>
         </div>
@@ -118,7 +126,7 @@ export function OurModel() {
               <h3 className="mt-3 font-display text-4xl text-red uppercase sm:text-5xl">
                 {prong.name}
               </h3>
-              <p className="mt-4 text-lg leading-relaxed text-ink sm:text-xl">{prong.body}</p>
+              <p className="mt-4 text-lg leading-relaxed text-ink sm:text-xl">{withBold(prong.body)}</p>
             </li>
           ))}
         </ol>
