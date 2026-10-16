@@ -26,7 +26,7 @@ export const event = {
 
   // Total headcount (registrants + their guests). Once reached, new sign-ups
   // join the waitlist. `null` means no cap. EVENT_CAPACITY overrides this.
-  capacity: null as number | null,
+  capacity: 80 as number | null,
 
   // How many friends one person can register alongside themselves.
   maxGuests: 3,
@@ -40,8 +40,8 @@ export const event = {
 
   // Optional. Shown in the footer and FAQ when set.
   contact: {
-    email: "",
-    instagram: "", // handle without the @
+    email: "contact@backyard.sg",
+    instagram: "ourbackyardsg", // handle without the @
   },
 };
 
