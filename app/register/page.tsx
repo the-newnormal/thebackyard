@@ -160,7 +160,7 @@ function StatusPill({
       {availability.spotsLeft === null
         ? "Registration open"
         : few
-          ? `Only ${availability.spotsLeft} spots left`
+          ? `Only ${availability.spotsLeft} ${availability.spotsLeft === 1 ? "spot" : "spots"} left`
           : "Registration open"}
     </span>
   );

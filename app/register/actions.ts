@@ -84,7 +84,7 @@ export async function register(
   if (result.kind === "duplicate") {
     // Only hand the existing pass to someone who also knows the phone number.
     if (normalizePhone(registration.phone) === data.phone) {
-      redirect(`/pass/${registration.code}?existing=1`);
+      redirect(`/pass/${registration.passToken}?existing=1`);
     }
     return {
       message:
@@ -95,5 +95,5 @@ export async function register(
   }
 
   after(() => sendConfirmationEmail(registration));
-  redirect(`/pass/${registration.code}?new=1`);
+  redirect(`/pass/${registration.passToken}?new=1`);
 }

@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 // Signed, expiring admin cookie. No user accounts: one shared ADMIN_PASSWORD
 // is enough for a small organising team. Imported by proxy.ts, so keep this
@@ -7,8 +7,15 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export const ADMIN_COOKIE = "backyard_admin";
 export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
+/**
+ * Sessions are signed with SESSION_SECRET (or the password) mixed with the
+ * current password, so removing or changing ADMIN_PASSWORD signs everyone out.
+ */
 function secret(): string | null {
-  return process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || null;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password || !isAdminConfigured()) return null;
+  const base = process.env.SESSION_SECRET || password;
+  return createHash("sha256").update(`${base}\0${password}`).digest("hex");
 }
 
 function sign(payload: string, key: string): string {
@@ -21,8 +28,11 @@ function safeEqual(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
+export const MIN_PASSWORD_LENGTH = 12;
+
+/** Admin stays off until a reasonably long shared password is set. */
 export function isAdminConfigured(): boolean {
-  return Boolean(process.env.ADMIN_PASSWORD);
+  return (process.env.ADMIN_PASSWORD?.length ?? 0) >= MIN_PASSWORD_LENGTH;
 }
 
 export function checkPassword(attempt: string): boolean {

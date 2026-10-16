@@ -1,8 +1,9 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { generateCode } from "./code";
+import { generateCode, generatePassToken } from "./code";
 import {
   partySize,
+  placement,
   type NewRegistration,
   type RegisterResult,
   type Registration,
@@ -44,6 +45,20 @@ const confirmedHeadcount = (rows: Registration[], slug: string) =>
     .filter((r) => r.eventSlug === slug && r.status === "confirmed")
     .reduce((sum, r) => sum + partySize(r), 0);
 
+/** Applies `change` to the row matching `match` and saves; null if none matched. */
+const updateWhere = (
+  match: (r: Registration) => boolean,
+  change: (r: Registration) => Registration,
+) =>
+  exclusive(async () => {
+    const rows = await load();
+    const index = rows.findIndex(match);
+    if (index === -1) return null;
+    rows[index] = change(rows[index]);
+    await save(rows);
+    return rows[index];
+  });
+
 export function createFileStore(): RegistrationStore {
   return {
     register: (input: NewRegistration, capacity) =>
@@ -58,30 +73,34 @@ export function createFileStore(): RegistrationStore {
         }
 
         const used = confirmedHeadcount(rows, input.eventSlug);
-        const status =
-          capacity === null || used + partySize(input) <= capacity
-            ? "confirmed"
-            : "waitlist";
+        const waiting = rows.some(
+          (r) => r.eventSlug === input.eventSlug && r.status === "waitlist",
+        );
+        const status = placement(partySize(input), { confirmed: used, waiting }, capacity);
 
-        let code = existing?.code ?? generateCode();
-        while (!existing && rows.some((r) => r.code === code)) code = generateCode();
+        let code = generateCode();
+        while (rows.some((r) => r.code === code)) code = generateCode();
 
         const registration: Registration = {
           ...input,
           code,
+          passToken: generatePassToken(),
           status,
           checkedInAt: null,
           createdAt: new Date().toISOString(),
         };
-        const next = existing
-          ? rows.map((r) => (r.code === code ? registration : r))
-          : [...rows, registration];
-        await save(next);
+        // Coming back after cancelling: start over with a new code and pass link.
+        const next = rows.filter((r) => r !== existing);
+        await save([...next, registration]);
         return { kind: "created", registration };
       }),
 
     async getByCode(code) {
       return (await load()).find((r) => r.code === code) ?? null;
+    },
+
+    async getByPassToken(token) {
+      return (await load()).find((r) => r.passToken === token) ?? null;
     },
 
     async list(eventSlug) {
@@ -98,14 +117,22 @@ export function createFileStore(): RegistrationStore {
     },
 
     update: (code, patch) =>
-      exclusive(async () => {
-        const rows = await load();
-        const index = rows.findIndex((r) => r.code === code);
-        if (index === -1) return null;
-        rows[index] = { ...rows[index], ...patch };
-        await save(rows);
-        return rows[index];
-      }),
+      updateWhere(
+        (r) => r.code === code,
+        (r) => ({ ...r, ...patch }),
+      ),
+
+    setCheckedIn: (code, checkedInAt) =>
+      updateWhere(
+        (r) => r.code === code && (checkedInAt ? r.status === "confirmed" : r.status !== "cancelled"),
+        (r) => ({ ...r, checkedInAt }),
+      ),
+
+    releaseByPassToken: (token) =>
+      updateWhere(
+        (r) => r.passToken === token && r.status !== "cancelled",
+        (r) => ({ ...r, status: "cancelled", checkedInAt: null }),
+      ),
 
     remove: (code) =>
       exclusive(async () => {

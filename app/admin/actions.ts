@@ -3,15 +3,25 @@
 import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   ADMIN_COOKIE,
   checkPassword,
   createSessionToken,
   isAdminConfigured,
+  MIN_PASSWORD_LENGTH,
   SESSION_TTL_SECONDS,
 } from "@/lib/admin-session";
-import { getStore, type RegistrationStatus } from "@/lib/registrations";
+import { event } from "@/content/event";
+import { sendConfirmationEmail } from "@/lib/email";
+import {
+  getCapacity,
+  getStore,
+  partySize,
+  placement,
+  type RegistrationStatus,
+} from "@/lib/registrations";
 import { isValidCode } from "@/lib/registrations/code";
 
 export async function login(
@@ -19,7 +29,9 @@ export async function login(
   formData: FormData,
 ): Promise<{ error?: string }> {
   if (!isAdminConfigured()) {
-    return { error: "Admin is disabled. Set ADMIN_PASSWORD to turn it on." };
+    return {
+      error: `Admin is disabled. Set ADMIN_PASSWORD (at least ${MIN_PASSWORD_LENGTH} characters) to turn it on.`,
+    };
   }
   if (!checkPassword(String(formData.get("password") ?? ""))) {
     // Slow down guessing.
@@ -36,11 +48,6 @@ export async function login(
   redirect("/admin");
 }
 
-export async function logout() {
-  (await cookies()).delete(ADMIN_COOKIE);
-  redirect("/admin/login");
-}
-
 function codeFrom(formData: FormData): string | null {
   const code = String(formData.get("code") ?? "");
   return isValidCode(code) ? code : null;
@@ -51,11 +58,7 @@ export async function setCheckedIn(formData: FormData) {
   const code = codeFrom(formData);
   if (!code) return;
   const checkedIn = formData.get("checkedIn") === "true";
-  await getStore().update(code, {
-    checkedInAt: checkedIn ? new Date().toISOString() : null,
-    // Checking in a waitlisted guest means they got a spot after all.
-    ...(checkedIn ? { status: "confirmed" as const } : {}),
-  });
+  await getStore().setCheckedIn(code, checkedIn ? new Date().toISOString() : null);
   refresh();
 }
 
@@ -66,10 +69,35 @@ export async function setStatus(formData: FormData) {
   const code = codeFrom(formData);
   const status = String(formData.get("status")) as RegistrationStatus;
   if (!code || !STATUSES.includes(status)) return;
-  await getStore().update(code, {
+  const store = getStore();
+  const before = await store.getByCode(code);
+  if (!before || before.status === status) return;
+  const updated = await store.update(code, {
     status,
     ...(status === "cancelled" ? { checkedInAt: null } : {}),
   });
+  // Let a waitlisted guest know they've been given a spot.
+  if (updated && before.status === "waitlist" && status === "confirmed") {
+    after(() => sendConfirmationEmail(updated));
+  }
+  refresh();
+}
+
+/** Un-cancels a registration, placing it the way a new sign-up would be. */
+export async function restoreRegistration(formData: FormData) {
+  await requireAdmin();
+  const code = codeFrom(formData);
+  if (!code) return;
+  const store = getStore();
+  const registration = await store.getByCode(code);
+  if (!registration || registration.status !== "cancelled") return;
+  const { confirmed, waitlist } = await store.headcount(event.slug);
+  const status = placement(
+    partySize(registration),
+    { confirmed, waiting: waitlist > 0 },
+    getCapacity(),
+  );
+  await store.update(code, { status });
   refresh();
 }
 

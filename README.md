@@ -7,8 +7,9 @@ The website and registration platform for Backyard, starting with the
 
 - **`/`**: landing page with the event details, the "Why Backyard" story, FAQ
 - **`/register`**: free registration with guests, dietary needs and a waitlist when full
-- **`/pass/CODE`**: each guest's pass with their check-in code, calendar links and a
-  "release my spot" button
+- **`/pass/<token>`**: each guest's pass with their check-in code, calendar links and
+  a "release my spot" button. The link carries an unguessable token; the short
+  check-in code on the pass is only for the check-in table
 - **`/admin`**: organiser dashboard with headcount, dietary breakdown, search,
   check-in, waitlist and CSV export
 
@@ -46,8 +47,10 @@ table is created automatically on first use.
 1. Import this repo into Vercel.
 2. Add a Postgres database (e.g. Neon from the Vercel Marketplace). It sets
    `DATABASE_URL`/`POSTGRES_URL` for you.
-3. Set `ADMIN_PASSWORD` (and optionally `SESSION_SECRET`, `EVENT_CAPACITY`,
-   `RESEND_API_KEY` + `EMAIL_FROM`). See `.env.example`.
+3. Set `ADMIN_PASSWORD` (12+ characters; optionally `SESSION_SECRET`,
+   `EVENT_CAPACITY`, `RESEND_API_KEY` + `EMAIL_FROM`). See `.env.example`.
+   Put the functions in the same region as the database (Project Settings →
+   Functions → Region, e.g. `sin1` for a Singapore database).
 4. Deploy. On Vercel the app refuses to fall back to the local file store, so a
    missing database shows up as an error instead of lost sign-ups.
 
@@ -57,10 +60,16 @@ table is created automatically on first use.
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.
 - Capacity counts people (registrant + guests). Once it's reached, new sign-ups
-  join the waitlist. In Postgres, sign-ups are serialised with an advisory
-  lock, so two people can't both take the last spot.
-- Guests can release their own spot from their pass. Organisers can check in,
-  give a waitlisted guest a spot, cancel, restore or permanently delete (for
-  personal-data requests) from `/admin`.
+  join the waitlist, and while anyone is waiting, freed spots stay with the
+  waitlist instead of going to newcomers. In Postgres, sign-ups are serialised
+  with an advisory lock, so two people can't both take the last spot.
+- Guests can release their own spot from their pass. Re-registering afterwards
+  issues a new pass link, so old links stop working.
+- Organisers can check in confirmed guests, give a waitlisted guest a spot
+  (which emails them, if email is set up), cancel, restore or permanently
+  delete (for personal-data requests) from `/admin`.
+- The `registrations` table is created on first use with row-level security
+  enabled and no policies, so on Supabase it isn't readable through the REST
+  API; the app connects as the table owner.
 - If Resend is configured, a confirmation email with the pass link goes out
   after each sign-up.

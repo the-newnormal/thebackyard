@@ -9,7 +9,7 @@ import { event } from "@/content/event";
 import { googleCalendarUrl } from "@/lib/calendar";
 import { eventDateLong, eventTimeRange, firstName } from "@/lib/format";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
-import { isValidCode, normalizeCode } from "@/lib/registrations/code";
+import { isValidPassToken } from "@/lib/registrations/code";
 import { siteUrl } from "@/lib/site";
 import { releaseSpot } from "../actions";
 
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function PassPage({ params, searchParams }: PageProps<"/pass/[code]">) {
+export default function PassPage({ params, searchParams }: PageProps<"/pass/[token]">) {
   return (
     <>
       <SiteHeader cta={false} />
@@ -41,10 +41,10 @@ export default function PassPage({ params, searchParams }: PageProps<"/pass/[cod
 async function Pass({
   params,
   searchParams,
-}: Pick<PageProps<"/pass/[code]">, "params" | "searchParams">) {
-  const code = normalizeCode((await params).code);
-  if (!isValidCode(code)) notFound();
-  const registration = await getStore().getByCode(code);
+}: Pick<PageProps<"/pass/[token]">, "params" | "searchParams">) {
+  const { token } = await params;
+  if (!isValidPassToken(token)) notFound();
+  const registration = await getStore().getByPassToken(token);
   if (!registration) notFound();
   const query = await searchParams;
 
@@ -170,7 +170,7 @@ function Ticket({ registration }: { registration: Registration }) {
               Directions
             </a>
           </div>
-          <form action={releaseSpot.bind(null, registration.code)} className="text-center">
+          <form action={releaseSpot.bind(null, registration.passToken)} className="text-center">
             <ConfirmButton
               confirm="Release your spot? Someone else will be able to take it."
               pendingLabel="Releasing…"

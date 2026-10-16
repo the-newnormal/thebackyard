@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { formatTimestamp } from "@/lib/format";
+import { normalizePhone } from "@/lib/registrations/phone";
 import {
   DIETARY_OPTIONS,
   HEARD_FROM_OPTIONS,
   partySize,
   type Registration,
 } from "@/lib/registrations/types";
-import { deleteRegistration, setCheckedIn, setStatus } from "./actions";
+import { deleteRegistration, restoreRegistration, setCheckedIn, setStatus } from "./actions";
 
 const FILTERS = [
   { key: "active", label: "All active" },
@@ -40,13 +41,16 @@ export function RegistrationList({ registrations }: { registrations: Registratio
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // Only treat the query as a phone number if it looks like one, so a code
+    // like "N299QS" doesn't also match every phone containing "299".
+    const phoneQuery = /^[\d\s()+-]+$/.test(q) ? normalizePhone(q) : "";
     return registrations.filter(
       (r) =>
         matches(r, filter) &&
         (!q ||
           r.name.toLowerCase().includes(q) ||
           r.email.includes(q) ||
-          r.phone.includes(q.replace(/\s/g, "")) ||
+          (phoneQuery !== "" && normalizePhone(r.phone).includes(phoneQuery)) ||
           r.code.toLowerCase().includes(q)),
     );
   }, [registrations, query, filter]);
@@ -130,7 +134,7 @@ function Row({ registration: r }: { registration: Registration }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 md:justify-end">
-        {r.status !== "cancelled" && (
+        {(r.status === "confirmed" || checkedIn) && (
           <form action={setCheckedIn}>
             <input type="hidden" name="code" value={r.code} />
             <input type="hidden" name="checkedIn" value={String(!checkedIn)} />
@@ -150,7 +154,15 @@ function Row({ registration: r }: { registration: Registration }) {
           <StatusButton code={r.code} status="confirmed" label="Give a spot" />
         )}
         {r.status === "cancelled" ? (
-          <StatusButton code={r.code} status="confirmed" label="Restore" />
+          <form action={restoreRegistration}>
+            <input type="hidden" name="code" value={r.code} />
+            <button
+              type="submit"
+              className="rounded-full border-2 border-forest/20 px-4 py-2 text-sm font-bold text-forest hover:border-forest"
+            >
+              Restore
+            </button>
+          </form>
         ) : (
           <form action={setStatus}>
             <input type="hidden" name="code" value={r.code} />

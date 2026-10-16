@@ -7,6 +7,12 @@ import { siteUrl } from "./site";
 // Optional confirmation emails via Resend (https://resend.com).
 // Set RESEND_API_KEY and EMAIL_FROM to turn them on; otherwise this is a no-op.
 
+/** First name for the greeting, unless it looks like a link someone typed in. */
+function greetingName(name: string): string {
+  const first = firstName(name);
+  return /^[\p{L}\p{M}'’-]{1,30}$/u.test(first) ? first : "there";
+}
+
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -15,9 +21,9 @@ export async function sendConfirmationEmail(registration: Registration): Promise
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) return;
 
-  const passUrl = `${siteUrl()}/pass/${registration.code}`;
+  const passUrl = `${siteUrl()}/pass/${registration.passToken}`;
   const waitlisted = registration.status === "waitlist";
-  const name = escapeHtml(firstName(registration.name));
+  const name = escapeHtml(greetingName(registration.name));
   const party = partySize(registration);
   const where = `${event.venue.name} (${event.venue.level}), ${event.venue.address}`;
 
@@ -47,7 +53,7 @@ export async function sendConfirmationEmail(registration: Registration): Promise
   </div>`;
 
   const text = [
-    `Hey ${firstName(registration.name)},`,
+    `Hey ${greetingName(registration.name)},`,
     waitlisted
       ? "We’re at capacity right now, so you’re on the waitlist. If a spot opens up we’ll let you know."
       : `You’re in! Party of ${party}.`,

@@ -13,7 +13,6 @@ import {
   StoreNotConfiguredError,
   type Registration,
 } from "@/lib/registrations";
-import { logout } from "./actions";
 import { RegistrationList } from "./registration-list";
 
 export const metadata: Metadata = {
@@ -36,7 +35,8 @@ export default function AdminPage() {
             <a href="/admin/export" className="btn btn-outline px-4 py-2 text-sm text-forest">
               Export CSV
             </a>
-            <form action={logout}>
+            {/* A full page load on sign-out, so no guest data lingers in the page. */}
+            <form method="post" action="/admin/logout">
               <button type="submit" className="btn px-4 py-2 text-sm text-muted hover:text-red">
                 Sign out
               </button>
@@ -79,9 +79,10 @@ async function Dashboard() {
   const checkedIn = active.filter((r) => r.checkedInAt);
   const capacity = getCapacity();
 
+  // Food prep is for people who are actually coming.
   const dietary = DIETARY_OPTIONS.map((o) => ({
     label: o.label,
-    value: people(active.filter((r) => r.dietary === o.value)),
+    value: people(confirmed.filter((r) => r.dietary === o.value)),
   }));
   const heardFrom = [
     ...HEARD_FROM_OPTIONS.map((o) => ({
@@ -121,7 +122,7 @@ async function Dashboard() {
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <Breakdown title="Dietary (people)" rows={dietary} />
+        <Breakdown title="Dietary (confirmed people)" rows={dietary} />
         <Breakdown title="Heard about us via" rows={heardFrom} />
       </div>
 
