@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+/* Backyard brand palette — from the brand guide. */
+@theme {
+  --color-paper: #f4f1ea;
+  --color-card: #fffdf7;
+  --color-cream: #f9ecd0;
+  --color-forest: #2f5b3b;
+  --color-forest-deep: #1f4029;
+  --color-lime: #b2d277;
+  --color-mustard: #f2c15d;
+  --color-orange: #e88732;
+  --color-vermilion: #d84a27;
+  --color-red: #c83d36;
+  --color-coral: #eb524b;
+  --color-rust: #74301f;
+  --color-ink: #1d2a20;
+  --color-muted: #5d6656;
+  --color-hatch: #6f9aa3;
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-brush: var(--font-brush-script), "Marker Felt", cursive;
+
+  --animate-marquee: marquee 40s linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Crumpled-paper texture over everything, like the printed posts. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background-image: url("/paper.svg");
+  background-size: 900px 900px;
+  mix-blend-mode: multiply;
+  opacity: 0.42;
+}
+
+::selection {
+  background: var(--color-lime);
+  color: var(--color-forest-deep);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-orange);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@layer components {
+  /* The BACKYARD wordmark: extended, black, italic. */
+  .font-display {
+    font-family: var(--font-sans);
+    font-weight: 900;
+    font-style: italic;
+    font-stretch: 125%;
+    letter-spacing: -0.045em;
+    line-height: 0.86;
+  }
+
+  /* Section kickers like “WHY BACKYARD”. */
+  .font-heading {
+    font-family: var(--font-sans);
+    font-weight: 900;
+    font-stretch: 118%;
+    letter-spacing: -0.02em;
+  }
+
+  /* Condensed bold, like the invite's details text. */
+  .font-condensed {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-stretch: 72%;
+    letter-spacing: -0.01em;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 999px;
+    padding: 0.85rem 1.5rem;
+    font-weight: 800;
+    font-stretch: 110%;
+    transition:
+      transform 150ms ease,
+      background-color 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .btn:hover {
+    transform: translateY(-2px) rotate(-1deg);
+  }
+  .btn:active {
+    transform: translateY(0) rotate(0);
+  }
+  .btn:disabled {
+    opacity: 0.6;
+    transform: none;
+    cursor: progress;
+  }
+  .btn-primary {
+    background: var(--color-forest);
+    color: var(--color-cream);
+    box-shadow: 4px 4px 0 var(--color-forest-deep);
+  }
+  .btn-primary:hover {
+    background: var(--color-orange);
+    color: var(--color-forest-deep);
+  }
+  .btn-outline {
+    border: 2px solid currentColor;
+  }
+  .btn-outline:hover {
+    background: var(--color-forest);
+    border-color: var(--color-forest);
+    color: var(--color-cream);
+  }
+
+  .field {
+    width: 100%;
+    border-radius: 0.9rem;
+    border: 2px solid color-mix(in oklab, var(--color-forest) 35%, transparent);
+    background: var(--color-card);
+    padding: 0.8rem 1rem;
+    font-size: 1rem;
+    color: var(--color-ink);
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+  .field::placeholder {
+    color: color-mix(in oklab, var(--color-muted) 70%, transparent);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-forest);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-lime) 60%, transparent);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--color-red);
+  }
+
+  /* Radio/checkbox pills. The input stays focusable for keyboards. */
+  .pill {
+    position: relative;
+    display: inline-flex;
+    cursor: pointer;
+  }
+  .pill input {
+    position: absolute;
+    opacity: 0;
+    inset: 0;
+    cursor: pointer;
+  }
+  .pill span {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 2px solid color-mix(in oklab, var(--color-forest) 35%, transparent);
+    background: var(--color-card);
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    transition: all 120ms ease;
+  }
+  .pill:hover span {
+    border-color: var(--color-forest);
+  }
+  .pill input:checked + span {
+    background: var(--color-forest);
+    border-color: var(--color-forest);
+    color: var(--color-cream);
+  }
+  .pill input:focus-visible + span {
+    outline: 3px solid var(--color-orange);
+    outline-offset: 2px;
+  }
+
+  /* Strips of masking tape for taped-down cards. */
+  .tape {
+    position: absolute;
+    width: 6.5rem;
+    height: 1.6rem;
+    background: color-mix(in oklab, var(--color-cream) 80%, white);
+    opacity: 0.85;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
