@@ -41,9 +41,24 @@ const toRegistration = (row: Row): Registration => ({
   createdAt: row.created_at.toISOString(),
 });
 
+/**
+ * postgres.js forwards query parameters it doesn't know (Supabase's `supa`,
+ * Prisma's `pgbouncer`, …) to the server as settings, which the server
+ * rejects. Drop them all; SSL is configured explicitly below.
+ */
+function withoutQuery(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.search = "";
+    return url.toString();
+  } catch {
+    return raw;
+  }
+}
+
 export function createPostgresStore(url: string): RegistrationStore {
   const isLocal = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
-  const sql = postgres(url, {
+  const sql = postgres(withoutQuery(url), {
     ssl: isLocal ? false : "require",
     max: 5,
     idle_timeout: 20,

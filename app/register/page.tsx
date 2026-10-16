@@ -9,7 +9,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { event } from "@/content/event";
 import { eventDateLong, eventTimeRange } from "@/lib/format";
-import { getAvailability, StoreNotConfiguredError } from "@/lib/registrations";
+import { getAvailability, isStoreConfigured } from "@/lib/registrations";
 import poster from "@/public/poster.webp";
 
 export const metadata: Metadata = {
@@ -81,27 +81,30 @@ export default function RegisterPage() {
 async function RegistrationGate() {
   await connection();
 
+  if (!isStoreConfigured()) {
+    return (
+      <Notice
+        title="Registration opens soon"
+        body="We’re putting the final touches on sign-ups. Check back shortly!"
+      />
+    );
+  }
+
   let availability;
   try {
     availability = await getAvailability(new Date());
   } catch (error) {
-    if (!(error instanceof StoreNotConfiguredError)) console.error(error);
+    console.error(error);
     // Still show the form; the action reports what went wrong on submit.
     availability = { state: "open", spotsLeft: null } as const;
   }
 
   if (availability.state === "closed") {
     return (
-      <div className="py-10 text-center">
-        <Starburst variant={1} color="var(--color-orange)" className="mx-auto w-20" scribble={false} />
-        <h2 className="mt-6 font-heading text-3xl text-forest">Registration has closed</h2>
-        <p className="mx-auto mt-3 max-w-sm text-lg text-muted">
-          Thanks for the love! Keep an eye out for the next Backyard.
-        </p>
-        <Link href="/" className="btn btn-outline mt-8 text-forest">
-          Back to home
-        </Link>
-      </div>
+      <Notice
+        title="Registration has closed"
+        body="Thanks for the love! Keep an eye out for the next Backyard."
+      />
     );
   }
 
@@ -121,6 +124,19 @@ async function RegistrationGate() {
       )}
       <RegistrationForm waitlist={waitlist} />
     </>
+  );
+}
+
+function Notice({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="py-10 text-center">
+      <Starburst variant={1} color="var(--color-orange)" className="mx-auto w-20" scribble={false} />
+      <h2 className="mt-6 font-heading text-3xl text-forest">{title}</h2>
+      <p className="mx-auto mt-3 max-w-sm text-lg text-muted">{body}</p>
+      <Link href="/" className="btn btn-outline mt-8 text-forest">
+        Back to home
+      </Link>
+    </div>
   );
 }
 

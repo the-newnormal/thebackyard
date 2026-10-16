@@ -16,9 +16,16 @@ export class StoreNotConfiguredError extends Error {
   }
 }
 
+const databaseUrl = () => process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+/** False on Vercel until a database is connected. */
+export function isStoreConfigured(): boolean {
+  return Boolean(databaseUrl()) || !process.env.VERCEL;
+}
+
 export function getStore(): RegistrationStore {
   if (store) return store;
-  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const url = databaseUrl();
   if (url) return (store = createPostgresStore(url));
   // A file on a serverless filesystem would silently lose sign-ups.
   if (process.env.VERCEL) throw new StoreNotConfiguredError();
