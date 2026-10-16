@@ -42,6 +42,7 @@ export function createSessionToken(nowMs: number): string {
 }
 
 export function verifySessionToken(token: string | undefined, nowMs: number): boolean {
+  if (!isAdminConfigured()) return false;
   const key = secret();
   if (!key || !token) return false;
   const lastDot = token.lastIndexOf(".");
