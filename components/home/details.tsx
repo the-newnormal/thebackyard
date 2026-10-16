@@ -32,7 +32,7 @@ export function Details() {
           <span className="tape -top-3 right-6 rotate-6" aria-hidden="true" />
           <Image
             src={poster}
-            alt={`Backyard community BBQ poster: ${event.tagline.join(", ")}. ${eventDateLong()}, ${eventTimeRange()}, ${event.venue.name}.`}
+            alt={`Backyard community BBQ poster: ${event.tagline.join(", ")}. ${eventDateLong()}, ${eventTimeRange()}, ${event.venue.name}. Subject to cancellation if the PSI forecast reaches the unhealthy range.`}
             className="w-full rounded-sm shadow-[0_18px_40px_-12px_rgb(31_64_41/0.45)]"
             sizes="(min-width: 768px) 40vw, 90vw"
             placeholder="blur"
@@ -77,7 +77,7 @@ export function Details() {
               </a>
             </Row>
             <Row label="What" color="text-forest">
-              {event.tagline.map((t) => t[0].toUpperCase() + t.slice(1)).join(", ")}. Come as
+              {event.tagline.join(", ").replace(/^./, (c) => c.toUpperCase())}. Come as
               you are — bring a friend or come solo.
             </Row>
             <Row label="Cost" color="text-vermilion">

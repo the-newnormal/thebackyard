@@ -8,7 +8,7 @@ export const event = {
   slug: "community-bbq-2026-10",
   name: "Backyard Community BBQ",
   shortName: "Community BBQ",
-  tagline: ["free bbq", "great vibes", "community"],
+  tagline: ["good food", "great vibes", "your community"],
 
   // ISO timestamps with the Singapore offset.
   startsAt: "2026-10-30T18:30:00+08:00",
