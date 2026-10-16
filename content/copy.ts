@@ -1,6 +1,10 @@
 // Site copy, adapted from the Backyard brand guide. Edit freely.
 
+import { event } from "./event";
+
 export const brand = {
+  // Browser tab titles, link previews and search results.
+  siteName: "Backyard SG",
   line: "a shared home where we eat, serve and love",
   personality: ["homely", "welcoming", "informal", "playful", "hosting-minded"],
 };
@@ -71,6 +75,10 @@ export const faqs = [
   {
     q: "How do I get there?",
     a: "Head to *SCAPE Plaza on Level 1 of *SCAPE, 2 Orchard Link — a short walk from Somerset MRT.",
+  },
+  {
+    q: "What if there’s haze?",
+    a: `The BBQ may be called off if the PSI forecast reaches the “unhealthy” range. We’ll post any updates on Instagram at @${event.contact.instagram}.`,
   },
   {
     q: "Plans changed?",

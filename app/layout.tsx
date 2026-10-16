@@ -27,13 +27,15 @@ const caveatBrush = Caveat_Brush({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
+  applicationName: brand.siteName,
   title: {
-    default: `Backyard — ${event.shortName.toLowerCase()}`,
-    template: "%s · Backyard",
+    default: `${brand.siteName} — ${event.shortName.toLowerCase()}`,
+    template: `%s · ${brand.siteName}`,
   },
   description: `${brand.line}. ${event.tagline.join(" | ")}. Join us at ${event.venue.name}.`,
   openGraph: {
-    title: `Backyard — ${event.shortName.toLowerCase()}`,
+    siteName: brand.siteName,
+    title: `${brand.siteName} — ${event.shortName.toLowerCase()}`,
     description: `${event.tagline.join(" | ")} — ${brand.line}.`,
     type: "website",
     locale: "en_SG",
