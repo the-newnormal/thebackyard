@@ -9,7 +9,6 @@ import { event } from "@/content/event";
 import { googleCalendarUrl } from "@/lib/calendar";
 import { eventDateLong, eventTimeRange, firstName } from "@/lib/format";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
-import { isValidCode, normalizeCode } from "@/lib/registrations/code";
 import { siteUrl } from "@/lib/site";
 import { releaseSpot } from "../actions";
 
@@ -42,9 +41,9 @@ async function Pass({
   params,
   searchParams,
 }: Pick<PageProps<"/pass/[code]">, "params" | "searchParams">) {
-  const code = normalizeCode((await params).code);
-  if (!isValidCode(code)) notFound();
-  const registration = await getStore().getByCode(code);
+  const passToken = (await params).code;
+  if (!/^[A-Za-z0-9_-]{43}$/.test(passToken)) notFound();
+  const registration = await getStore().getByPassToken(passToken);
   if (!registration) notFound();
   const query = await searchParams;
 
@@ -170,7 +169,7 @@ function Ticket({ registration }: { registration: Registration }) {
               Directions
             </a>
           </div>
-          <form action={releaseSpot.bind(null, registration.code)} className="text-center">
+          <form action={releaseSpot.bind(null, registration.passToken)} className="text-center">
             <ConfirmButton
               confirm="Release your spot? Someone else will be able to take it."
               pendingLabel="Releasing…"

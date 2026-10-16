@@ -21,6 +21,7 @@ export type RegistrationStatus = "confirmed" | "waitlist" | "cancelled";
 
 export interface Registration {
   code: string;
+  passToken: string;
   eventSlug: string;
   name: string;
   email: string;
@@ -37,7 +38,7 @@ export interface Registration {
 
 export type NewRegistration = Omit<
   Registration,
-  "code" | "status" | "checkedInAt" | "createdAt"
+  "code" | "passToken" | "status" | "checkedInAt" | "createdAt"
 >;
 
 export type RegisterResult =
@@ -63,6 +64,7 @@ export interface RegistrationStore {
     capacity: number | null,
   ): Promise<RegisterResult>;
   getByCode(code: string): Promise<Registration | null>;
+  getByPassToken(token: string): Promise<Registration | null>;
   list(eventSlug: string): Promise<Registration[]>;
   headcount(eventSlug: string): Promise<Headcount>;
   update(code: string, patch: RegistrationPatch): Promise<Registration | null>;

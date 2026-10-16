@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { generateCode } from "./code";
+import { generateCode, generatePassToken } from "./code";
 import {
   partySize,
   type NewRegistration,
@@ -69,6 +69,7 @@ export function createFileStore(): RegistrationStore {
         const registration: Registration = {
           ...input,
           code,
+          passToken: existing?.passToken ?? generatePassToken(),
           status,
           checkedInAt: null,
           createdAt: new Date().toISOString(),
@@ -82,6 +83,10 @@ export function createFileStore(): RegistrationStore {
 
     async getByCode(code) {
       return (await load()).find((r) => r.code === code) ?? null;
+    },
+
+    async getByPassToken(token) {
+      return (await load()).find((r) => r.passToken === token) ?? null;
     },
 
     async list(eventSlug) {

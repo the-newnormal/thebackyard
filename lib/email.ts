@@ -15,7 +15,7 @@ export async function sendConfirmationEmail(registration: Registration): Promise
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) return;
 
-  const passUrl = `${siteUrl()}/pass/${registration.code}`;
+  const passUrl = `${siteUrl()}/pass/${registration.passToken}`;
   const waitlisted = registration.status === "waitlist";
   const name = escapeHtml(firstName(registration.name));
   const party = partySize(registration);

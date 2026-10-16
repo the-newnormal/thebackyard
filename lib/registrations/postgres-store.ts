@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { generateCode } from "./code";
+import { generateCode, generatePassToken } from "./code";
 import {
   partySize,
   type Headcount,
@@ -11,6 +11,7 @@ import {
 
 type Row = {
   code: string;
+  pass_token: string;
   event_slug: string;
   name: string;
   email: string;
@@ -27,6 +28,7 @@ type Row = {
 
 const toRegistration = (row: Row): Registration => ({
   code: row.code,
+  passToken: row.pass_token ?? "",
   eventSlug: row.event_slug,
   name: row.name,
   email: row.email,
@@ -72,6 +74,7 @@ export function createPostgresStore(url: string): RegistrationStore {
       create table if not exists registrations (
         id bigserial primary key,
         code text not null unique,
+        pass_token text,
         event_slug text not null,
         name text not null,
         email text not null,
@@ -85,6 +88,9 @@ export function createPostgresStore(url: string): RegistrationStore {
         checked_in_at timestamptz,
         created_at timestamptz not null default now()
       );
+      alter table registrations add column if not exists pass_token text;
+      create unique index if not exists registrations_pass_token
+        on registrations (pass_token) where pass_token is not null;
       create unique index if not exists registrations_event_email
         on registrations (event_slug, lower(email));
     `
@@ -120,6 +126,7 @@ export function createPostgresStore(url: string): RegistrationStore {
 
         const values = {
           event_slug: input.eventSlug,
+          pass_token: existing?.pass_token ?? generatePassToken(),
           name: input.name,
           email: input.email,
           phone: input.phone,
@@ -157,6 +164,12 @@ export function createPostgresStore(url: string): RegistrationStore {
     async getByCode(code) {
       await ready();
       const [row] = await sql<Row[]>`select * from registrations where code = ${code}`;
+      return row ? toRegistration(row) : null;
+    },
+
+    async getByPassToken(token) {
+      await ready();
+      const [row] = await sql<Row[]>`select * from registrations where pass_token = ${token}`;
       return row ? toRegistration(row) : null;
     },
 
