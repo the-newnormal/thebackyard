@@ -41,7 +41,8 @@ export const model = {
   prongs: [
     {
       name: "Feast",
-      body: "Food is the pull factor — local fare mixed with a western flair. An alternative to your usual Friday dinner, and a highlight of the area.",
+      // Wrap words in **double asterisks** to bold them.
+      body: "Food is the pull factor — local fare mixed with a western flair. An **alternative to your usual Friday dinner**, and a highlight of the area.",
     },
     {
       name: "Facilitate",
