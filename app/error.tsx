@@ -16,7 +16,7 @@ export default function Error({ retry }: { error: unknown; retry: () => void }) 
         <button type="button" onClick={() => retry()} className="btn btn-primary">
           Try again
         </button>
-        <Link href="/" className="btn btn-outline text-forest">
+        <Link href="/" className="btn btn-outline">
           Back to home
         </Link>
       </div>

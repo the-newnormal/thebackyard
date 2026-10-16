@@ -49,7 +49,7 @@ export function Hero() {
           <Link href="/register" className="btn btn-primary px-7 py-4 text-lg">
             Save my spot <span aria-hidden="true">→</span>
           </Link>
-          <Link href="#why" className="btn btn-outline px-6 py-4 text-lg text-forest">
+          <Link href="#why" className="btn btn-outline px-6 py-4 text-lg">
             Why Backyard?
           </Link>
         </div>

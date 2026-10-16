@@ -143,7 +143,7 @@ function Notice({ title, body }: { title: string; body: string }) {
       <Starburst variant={1} color="var(--color-orange)" className="mx-auto w-20" scribble={false} />
       <h2 className="mt-6 font-heading text-3xl text-forest">{title}</h2>
       <p className="mx-auto mt-3 max-w-sm text-lg text-muted">{body}</p>
-      <Link href="/" className="btn btn-outline mt-8 text-forest">
+      <Link href="/" className="btn btn-outline mt-8">
         Back to home
       </Link>
     </div>

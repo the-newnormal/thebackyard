@@ -158,14 +158,14 @@ function Ticket({ registration }: { registration: Registration }) {
             >
               Add to Google Calendar
             </a>
-            <a href="/event.ics" className="btn btn-outline px-5 py-3 text-sm text-forest">
+            <a href="/event.ics" className="btn btn-outline px-5 py-3 text-sm">
               Apple / Outlook (.ics)
             </a>
             <a
               href={event.venue.mapsUrl}
               target="_blank"
               rel="noreferrer"
-              className="btn btn-outline px-5 py-3 text-sm text-forest"
+              className="btn btn-outline px-5 py-3 text-sm"
             >
               Directions
             </a>
