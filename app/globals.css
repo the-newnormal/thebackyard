@@ -10,6 +10,8 @@
   --color-lime: #b2d277;
   --color-mustard: #f2c15d;
   --color-orange: #e88732;
+  /* Darker orange for small text: brand orange is under 3:1 on paper. */
+  --color-orange-ink: #a5520f;
   --color-vermilion: #d84a27;
   --color-red: #c83d36;
   --color-coral: #eb524b;
@@ -207,6 +209,14 @@ body::before {
   .pill input:focus-visible + span {
     outline: 3px solid var(--color-orange);
     outline-offset: 2px;
+  }
+  @media (forced-colors: active) {
+    .pill input:checked + span {
+      forced-color-adjust: none;
+      background: Highlight;
+      border-color: Highlight;
+      color: HighlightText;
+    }
   }
 
   /* Strips of masking tape for taped-down cards. */

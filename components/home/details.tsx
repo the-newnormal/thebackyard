@@ -46,7 +46,7 @@ export function Details() {
           </p>
 
           <dl className="mt-8 border-b-2 border-dashed border-forest/20">
-            <Row label="When" color="text-orange">
+            <Row label="When" color="text-orange-ink">
               <strong className="font-semibold">{eventDateLong()}</strong>
               <br />
               {eventTimeRange()}
@@ -54,7 +54,7 @@ export function Details() {
                 href={googleCalendarUrl(siteUrl())}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 block text-base font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-orange"
+                className="mt-2 block text-base font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion"
               >
                 Add to calendar
               </a>
@@ -71,7 +71,7 @@ export function Details() {
                 href={event.venue.mapsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 block text-base font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-orange"
+                className="mt-2 block text-base font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion"
               >
                 Open in Maps
               </a>

@@ -252,6 +252,28 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       return row ? toRegistration(row) : null;
     },
 
+    async restore(code, capacity) {
+      await ready();
+      return sql.begin(async (tx) => {
+        const [found] = await tx<Row[]>`select event_slug from registrations where code = ${code}`;
+        if (!found) return null;
+        await tx`select pg_advisory_xact_lock(hashtext(${found.event_slug}))`;
+        const [row] = await tx<Row[]>`select * from registrations where code = ${code}`;
+        if (!row || row.status !== "cancelled") return null;
+        const [{ used, waiting }] = await tx<{ used: number; waiting: number }[]>`
+          select
+            coalesce(sum(1 + guests) filter (where status = 'confirmed'), 0)::int as used,
+            count(*) filter (where status = 'waitlist')::int as waiting
+          from registrations where event_slug = ${row.event_slug}
+        `;
+        const status = placement(partySize(row), { confirmed: used, waiting: waiting > 0 }, capacity);
+        const [updated] = await tx<Row[]>`
+          update registrations set status = ${status} where code = ${code} returning *
+        `;
+        return toRegistration(updated);
+      });
+    },
+
     async releaseByPassToken(token) {
       await ready();
       const [row] = await sql<Row[]>`

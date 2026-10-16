@@ -128,6 +128,25 @@ export function createFileStore(): RegistrationStore {
         (r) => ({ ...r, checkedInAt }),
       ),
 
+    restore: (code, capacity) =>
+      exclusive(async () => {
+        const rows = await load();
+        const index = rows.findIndex((r) => r.code === code && r.status === "cancelled");
+        if (index === -1) return null;
+        const slug = rows[index].eventSlug;
+        const status = placement(
+          partySize(rows[index]),
+          {
+            confirmed: confirmedHeadcount(rows, slug),
+            waiting: rows.some((r) => r.eventSlug === slug && r.status === "waitlist"),
+          },
+          capacity,
+        );
+        rows[index] = { ...rows[index], status };
+        await save(rows);
+        return rows[index];
+      }),
+
     releaseByPassToken: (token) =>
       updateWhere(
         (r) => r.passToken === token && r.status !== "cancelled",

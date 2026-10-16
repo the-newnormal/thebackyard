@@ -8,12 +8,13 @@ export const ADMIN_COOKIE = "backyard_admin";
 export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
 /**
- * Sessions are signed with SESSION_SECRET (or the password) mixed with the
- * current password, so removing or changing ADMIN_PASSWORD signs everyone out.
+ * Sessions are signed with SESSION_SECRET mixed with the current password, so
+ * removing or changing ADMIN_PASSWORD signs everyone out. Outside production
+ * the password stands in for a missing SESSION_SECRET.
  */
 function secret(): string | null {
-  const password = process.env.ADMIN_PASSWORD;
-  if (!password || !isAdminConfigured()) return null;
+  if (adminConfigError()) return null;
+  const password = process.env.ADMIN_PASSWORD as string;
   const base = process.env.SESSION_SECRET || password;
   return createHash("sha256").update(`${base}\0${password}`).digest("hex");
 }
@@ -30,9 +31,23 @@ function safeEqual(a: string, b: string): boolean {
 
 export const MIN_PASSWORD_LENGTH = 12;
 
-/** Admin stays off until a reasonably long shared password is set. */
+/**
+ * Why admin is switched off, or null if it's ready. In production the signing
+ * key must not be derivable from the password alone, or a stolen cookie would
+ * let someone test password guesses offline.
+ */
+export function adminConfigError(): string | null {
+  if ((process.env.ADMIN_PASSWORD?.length ?? 0) < MIN_PASSWORD_LENGTH) {
+    return `Set ADMIN_PASSWORD (at least ${MIN_PASSWORD_LENGTH} characters) to turn it on.`;
+  }
+  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+    return "Set SESSION_SECRET (a long random value) to turn it on.";
+  }
+  return null;
+}
+
 export function isAdminConfigured(): boolean {
-  return (process.env.ADMIN_PASSWORD?.length ?? 0) >= MIN_PASSWORD_LENGTH;
+  return adminConfigError() === null;
 }
 
 export function checkPassword(attempt: string): boolean {
@@ -45,7 +60,7 @@ export function checkPassword(attempt: string): boolean {
 
 export function createSessionToken(nowMs: number): string {
   const key = secret();
-  if (!key) throw new Error("ADMIN_PASSWORD is not set");
+  if (!key) throw new Error("Admin is not configured");
   const expires = Math.floor(nowMs / 1000) + SESSION_TTL_SECONDS;
   const payload = `admin.${expires}`;
   return `${payload}.${sign(payload, key)}`;

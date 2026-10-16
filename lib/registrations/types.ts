@@ -75,6 +75,11 @@ export interface RegistrationStore {
   update(code: string, patch: RegistrationPatch): Promise<Registration | null>;
   /** Checks in a confirmed guest, or undoes a check-in; never changes status. */
   setCheckedIn(code: string, checkedInAt: string | null): Promise<Registration | null>;
+  /**
+   * Un-cancels a registration, placing it the way a new sign-up would be.
+   * Runs under the same lock as register so it can't overbook.
+   */
+  restore(code: string, capacity: number | null): Promise<Registration | null>;
   /** Cancels the registration this pass token belongs to, if still active. */
   releaseByPassToken(token: string): Promise<Registration | null>;
   remove(code: string): Promise<boolean>;

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { event } from "@/content/event";
-import { sendConfirmationEmail } from "@/lib/email";
+import { isEmailConfigured, sendConfirmationEmail } from "@/lib/email";
 import {
   getCapacity,
   getStore,
@@ -87,8 +87,9 @@ export async function register(
       redirect(`/pass/${registration.passToken}?existing=1`);
     }
     return {
-      message:
-        "This email is already registered. Check your inbox for your pass, or use the phone number you signed up with.",
+      message: isEmailConfigured()
+        ? "This email is already registered. Check your inbox for your pass, or re-enter the mobile number you signed up with."
+        : "This email is already registered. Re-enter the mobile number you signed up with to get your pass back.",
       fieldErrors: { email: ["Already registered"] },
       values,
     };

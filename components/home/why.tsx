@@ -33,7 +33,7 @@ export function WhyBackyard() {
             <p className="mt-4 font-serif text-2xl leading-snug text-ink sm:text-[1.7rem]">
               {whyBackyard.idea.body}
             </p>
-            <p className="mt-6 font-display text-xl text-orange">eat · serve · love</p>
+            <p className="mt-6 font-display text-xl text-vermilion">eat · serve · love</p>
           </article>
         </div>
       </div>
@@ -53,8 +53,8 @@ export function WhyBbq() {
   return (
     <section className="relative overflow-hidden border-y-4 border-orange/30 bg-cream/60 py-24 sm:py-32">
       <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
-        <p className="font-heading text-2xl text-orange uppercase sm:text-3xl">{whyBbq.kicker}</p>
-        <h2 className="mt-2 font-heading text-3xl leading-tight text-orange sm:text-5xl">
+        <p className="font-heading text-2xl text-vermilion uppercase sm:text-3xl">{whyBbq.kicker}</p>
+        <h2 className="mt-2 font-heading text-3xl leading-tight text-vermilion sm:text-5xl">
           {whyBbq.title}
         </h2>
 
@@ -74,12 +74,12 @@ export function WhyBbq() {
         </div>
 
         <div className="mt-24">
-          <h3 className="font-heading text-3xl text-orange sm:text-4xl">{foodFirst.title}</h3>
+          <h3 className="font-heading text-3xl text-vermilion sm:text-4xl">{foodFirst.title}</h3>
           <figure className="mx-auto mt-6 max-w-3xl">
             <blockquote className="font-serif text-[clamp(1.6rem,4vw,2.6rem)] leading-tight text-vermilion italic">
               “{foodFirst.quote}”
             </blockquote>
-            <figcaption className="mt-3 font-serif text-xl text-orange italic">
+            <figcaption className="mt-3 font-serif text-xl text-orange-ink italic">
               — {foodFirst.quoteBy}
             </figcaption>
           </figure>

@@ -7,32 +7,21 @@ import { after } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   ADMIN_COOKIE,
+  adminConfigError,
   checkPassword,
   createSessionToken,
-  isAdminConfigured,
-  MIN_PASSWORD_LENGTH,
   SESSION_TTL_SECONDS,
 } from "@/lib/admin-session";
-import { event } from "@/content/event";
 import { sendConfirmationEmail } from "@/lib/email";
-import {
-  getCapacity,
-  getStore,
-  partySize,
-  placement,
-  type RegistrationStatus,
-} from "@/lib/registrations";
+import { getCapacity, getStore, type RegistrationStatus } from "@/lib/registrations";
 import { isValidCode } from "@/lib/registrations/code";
 
 export async function login(
   _prev: { error?: string },
   formData: FormData,
 ): Promise<{ error?: string }> {
-  if (!isAdminConfigured()) {
-    return {
-      error: `Admin is disabled. Set ADMIN_PASSWORD (at least ${MIN_PASSWORD_LENGTH} characters) to turn it on.`,
-    };
-  }
+  const configError = adminConfigError();
+  if (configError) return { error: `Admin is disabled. ${configError}` };
   if (!checkPassword(String(formData.get("password") ?? ""))) {
     // Slow down guessing.
     await new Promise((resolve) => setTimeout(resolve, 800));
@@ -88,16 +77,7 @@ export async function restoreRegistration(formData: FormData) {
   await requireAdmin();
   const code = codeFrom(formData);
   if (!code) return;
-  const store = getStore();
-  const registration = await store.getByCode(code);
-  if (!registration || registration.status !== "cancelled") return;
-  const { confirmed, waitlist } = await store.headcount(event.slug);
-  const status = placement(
-    partySize(registration),
-    { confirmed, waiting: waitlist > 0 },
-    getCapacity(),
-  );
-  await store.update(code, { status });
+  await getStore().restore(code, getCapacity());
   refresh();
 }
 

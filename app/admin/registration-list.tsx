@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ConfirmButton } from "@/components/confirm-button";
+import { ConfirmButton, SubmitButton } from "@/components/confirm-button";
 import { formatTimestamp } from "@/lib/format";
 import { normalizePhone } from "@/lib/registrations/phone";
 import {
@@ -134,20 +134,29 @@ function Row({ registration: r }: { registration: Registration }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 md:justify-end">
-        {(r.status === "confirmed" || checkedIn) && (
+        {r.status === "confirmed" && !checkedIn && (
           <form action={setCheckedIn}>
             <input type="hidden" name="code" value={r.code} />
-            <input type="hidden" name="checkedIn" value={String(!checkedIn)} />
-            <button
-              type="submit"
-              className={`rounded-full px-4 py-2 text-sm font-bold transition-colors ${
-                checkedIn
-                  ? "border-2 border-forest/20 text-forest hover:border-forest"
-                  : "bg-forest text-cream hover:bg-orange hover:text-forest-deep"
-              }`}
+            <input type="hidden" name="checkedIn" value="true" />
+            <SubmitButton
+              pendingLabel="Checking in…"
+              className="rounded-full bg-forest px-4 py-2 text-sm font-bold text-cream transition-colors hover:bg-orange hover:text-forest-deep disabled:opacity-60"
             >
-              {checkedIn ? "Undo check-in" : "Check in"}
-            </button>
+              Check in
+            </SubmitButton>
+          </form>
+        )}
+        {checkedIn && (
+          // Undo sits behind a confirm so a late second tap on "Check in" can't undo it.
+          <form action={setCheckedIn}>
+            <input type="hidden" name="code" value={r.code} />
+            <input type="hidden" name="checkedIn" value="false" />
+            <ConfirmButton
+              confirm={`Undo ${r.name}'s check-in?`}
+              className="rounded-full px-3 py-2 text-sm font-semibold text-muted hover:text-red"
+            >
+              Undo check-in
+            </ConfirmButton>
           </form>
         )}
         {r.status === "waitlist" && (

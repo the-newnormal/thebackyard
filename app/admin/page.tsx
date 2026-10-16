@@ -98,7 +98,11 @@ async function Dashboard() {
         <Stat
           label="Coming (people)"
           value={people(confirmed)}
-          note={capacity ? `of ${capacity} capacity` : `${confirmed.length} sign-ups`}
+          note={
+            capacity
+              ? `of ${capacity} · ${Math.max(0, capacity - people(confirmed))} free`
+              : `${confirmed.length} sign-ups`
+          }
           tone="bg-forest text-cream"
         />
         <Stat
@@ -122,7 +126,13 @@ async function Dashboard() {
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <Breakdown title="Dietary (confirmed people)" rows={dietary} />
+        <Breakdown
+          title="Dietary (confirmed people)"
+          rows={dietary}
+          footnote={`Each party picks one option for everyone; ${
+            confirmed.filter((r) => r.dietaryNotes).length
+          } parties added notes, so check those in the list.`}
+        />
         <Breakdown title="Heard about us via" rows={heardFrom} />
       </div>
 
@@ -151,7 +161,15 @@ function Stat({
   );
 }
 
-function Breakdown({ title, rows }: { title: string; rows: { label: string; value: number }[] }) {
+function Breakdown({
+  title,
+  rows,
+  footnote,
+}: {
+  title: string;
+  rows: { label: string; value: number }[];
+  footnote?: string;
+}) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <section className="rounded-2xl border-2 border-forest/15 bg-card p-5">
@@ -170,6 +188,7 @@ function Breakdown({ title, rows }: { title: string; rows: { label: string; valu
           </li>
         ))}
       </ul>
+      {footnote && <p className="mt-3 text-sm text-muted">{footnote}</p>}
     </section>
   );
 }

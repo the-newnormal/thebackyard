@@ -44,7 +44,7 @@ export default function RegisterPage() {
               />
               <dl className="space-y-2 text-[0.95rem] leading-snug">
                 <div>
-                  <dt className="font-heading text-xs tracking-widest text-orange uppercase">When</dt>
+                  <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">When</dt>
                   <dd>
                     {eventDateLong()}
                     <br />
@@ -119,7 +119,8 @@ async function RegistrationGate() {
       </div>
       {waitlist && (
         <p className="-mt-4 mb-8 rounded-xl bg-mustard/30 px-4 py-3 text-ink">
-          We’re at capacity right now. Join the waitlist and we’ll let you know if a spot opens up.
+          Every spot is taken or held for someone already waiting. Join the waitlist and we’ll
+          let you know if a spot opens up.
         </p>
       )}
       <RegistrationForm waitlist={waitlist} />
@@ -155,7 +156,7 @@ function StatusPill({
   const few = availability.spotsLeft !== null && availability.spotsLeft <= 20;
   return (
     <span
-      className={`rounded-full px-3 py-1 text-sm font-bold ${few ? "bg-coral text-card" : "bg-lime text-forest-deep"}`}
+      className={`rounded-full px-3 py-1 text-sm font-bold ${few ? "bg-red text-card" : "bg-lime text-forest-deep"}`}
     >
       {availability.spotsLeft === null
         ? "Registration open"

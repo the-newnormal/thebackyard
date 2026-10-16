@@ -58,9 +58,10 @@ async function Pass({
           Screenshot or bookmark this page — it’s your pass.
         </p>
       )}
-      {query.existing && (
+      {query.existing && registration.status !== "cancelled" && (
         <p className="mb-6 rounded-2xl bg-mustard/50 px-5 py-4 text-center font-semibold text-forest-deep">
-          You’re already registered — here’s your pass.
+          You’re already registered, so we kept your original details. To change them,
+          release this spot and register again.
         </p>
       )}
       <Ticket registration={registration} />
@@ -87,7 +88,7 @@ function Ticket({ registration }: { registration: Registration }) {
           className="absolute -inset-x-[10%] -inset-y-[10%] -z-10 h-[120%] w-[120%] opacity-60"
         />
         <p className="font-serif text-xl text-lime italic">{event.tagline.join(" | ")}</p>
-        <p className="mt-2 font-display text-6xl text-lime sm:text-7xl">BACKYARD</p>
+        <p className="mt-2 font-display text-[clamp(2.25rem,11vw,4.5rem)] text-lime">BACKYARD</p>
         <p className="mt-1 font-serif text-2xl text-cream italic">
           {event.shortName.toLowerCase()}
         </p>
@@ -138,7 +139,7 @@ function Ticket({ registration }: { registration: Registration }) {
           <span className="text-muted">{event.venue.address}</span>
         </Item>
         <div className="col-span-2 rounded-2xl bg-cream px-5 py-4 text-center">
-          <dt className="font-heading text-xs tracking-widest text-orange uppercase">
+          <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">
             Check-in code
           </dt>
           <dd className="mt-1 font-mono text-4xl font-bold tracking-[0.3em] text-forest">
@@ -188,7 +189,7 @@ function Ticket({ registration }: { registration: Registration }) {
 function Item({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-heading text-xs tracking-widest text-orange uppercase">{label}</dt>
+      <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">{label}</dt>
       <dd className="mt-1 leading-snug font-semibold text-ink">{children}</dd>
     </div>
   );

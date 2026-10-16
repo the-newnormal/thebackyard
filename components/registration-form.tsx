@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { register, type RegisterState } from "@/app/register/actions";
 import { event } from "@/content/event";
 import { DIETARY_OPTIONS, HEARD_FROM_OPTIONS } from "@/lib/registrations/types";
@@ -30,15 +30,27 @@ function Label({ htmlFor, children, hint }: { htmlFor?: string; children: React.
 
 export function RegistrationForm({ waitlist = false }: { waitlist?: boolean }) {
   const [state, action, pending] = useActionState<RegisterState, FormData>(register, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
+  // Errors render far above the submit button on a phone: bring them into view.
+  useEffect(() => {
+    if (!state.message) return;
+    const field = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    const target = field ?? alertRef.current;
+    target?.focus();
+    target?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [state]);
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
   const invalid = (key: string) => (e[key]?.length ? true : undefined);
   const describedBy = (key: string) => (e[key]?.length ? `${key}-error` : undefined);
 
   return (
-    <form action={action} className="space-y-7">
+    <form ref={formRef} action={action} className="space-y-7">
       {state.message && (
         <div
+          ref={alertRef}
+          tabIndex={-1}
           role="alert"
           className="rounded-xl border-2 border-red bg-red/10 px-4 py-3 font-semibold text-red"
         >
