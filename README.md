@@ -50,7 +50,8 @@ table is created automatically on first use.
 3. Set `ADMIN_PASSWORD` (12+ characters), `SESSION_SECRET` and
    `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (each `openssl rand -base64 32`; the
    last keeps forms that were open during a redeploy working); optionally
-   `EVENT_CAPACITY` and `RESEND_API_KEY` + `EMAIL_FROM`. See `.env.example`.
+   `EVENT_CAPACITY` and confirmation email (`GMAIL_USER` + `GMAIL_APP_PASSWORD`,
+   or `RESEND_API_KEY`, plus `EMAIL_FROM`). See `.env.example`.
    Put the functions in the same region as the database (Project Settings →
    Functions → Region, e.g. `sin1` for a Singapore database).
 4. Deploy. On Vercel the app refuses to fall back to the local file store, so a
@@ -73,5 +74,5 @@ table is created automatically on first use.
 - The `registrations` table is created on first use with row-level security
   enabled and no policies, so on Supabase it isn't readable through the REST
   API; the app connects as the table owner.
-- If Resend is configured, a confirmation email with the pass link goes out
-  after each sign-up.
+- If email is configured (Gmail or Resend), a confirmation email with the pass
+  link goes out after each sign-up.

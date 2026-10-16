@@ -1,11 +1,16 @@
 import "server-only";
+import { createTransport } from "nodemailer";
 import { event } from "@/content/event";
 import { eventDateLong, eventTimeRange, firstName } from "./format";
 import { partySize, type Registration } from "./registrations/types";
 import { siteUrl } from "./site";
 
-// Optional confirmation emails via Resend (https://resend.com).
-// Set RESEND_API_KEY and EMAIL_FROM to turn them on; otherwise this is a no-op.
+// Optional confirmation emails, sent through either:
+// - Gmail / Google Workspace: GMAIL_USER (the mailbox you sign in to) and
+//   GMAIL_APP_PASSWORD (an app password for it). EMAIL_FROM can name an alias
+//   that mailbox may send as, e.g. "Backyard SG <contact@backyard.sg>".
+// - Resend (https://resend.com): RESEND_API_KEY and EMAIL_FROM.
+// Gmail is used when both are set. With neither, sending is a no-op.
 
 /** First name for the greeting, unless it looks like a link someone typed in. */
 function greetingName(name: string): string {
@@ -16,14 +21,22 @@ function greetingName(name: string): string {
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+function gmailAccount() {
+  const user = process.env.GMAIL_USER?.trim();
+  // Google shows app passwords in groups of four; the spaces aren't part of it.
+  const pass = process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, "");
+  return user && pass ? { user, pass } : null;
+}
+
 export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  return Boolean(gmailAccount() || (process.env.RESEND_API_KEY && process.env.EMAIL_FROM));
 }
 
 export async function sendConfirmationEmail(registration: Registration): Promise<void> {
+  const gmail = gmailAccount();
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) return;
+  const from = process.env.EMAIL_FROM?.trim() || gmail?.user;
+  if (!gmail && !(apiKey && from)) return;
 
   const passUrl = `${siteUrl()}/pass/${registration.passToken}`;
   const waitlisted = registration.status === "waitlist";
@@ -67,6 +80,27 @@ export async function sendConfirmationEmail(registration: Registration): Promise
     `Your pass: ${passUrl}`,
   ].join("\n\n");
 
+  const message = { from, to: registration.email, subject, html, text };
+
+  if (gmail) {
+    try {
+      const transport = createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: gmail,
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
+      });
+      await transport.sendMail(message);
+      console.info("Confirmation email sent via Gmail");
+    } catch (error) {
+      console.error("Confirmation email failed (Gmail)", error);
+    }
+    return;
+  }
+
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -74,7 +108,7 @@ export async function sendConfirmationEmail(registration: Registration): Promise
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to: registration.email, subject, html, text }),
+      body: JSON.stringify(message),
     });
     if (!response.ok) {
       console.error("Confirmation email failed", response.status, await response.text());

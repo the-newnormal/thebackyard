@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  // Loaded with Node's require instead of bundled; it opens SMTP sockets.
+  serverExternalPackages: ["nodemailer"],
   // Pass links and the dashboard must never end up in search results. Crawlers
   // only see this if robots.txt lets them fetch the page, so /pass isn't disallowed.
   async headers() {
