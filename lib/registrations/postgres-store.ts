@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import { FIRST_EDITION_SEED } from "@/content/series";
-import { sameDayEdition, slugFor } from "../editions/plan";
+import { dayClash, sameDayEdition, slugFor } from "../editions/plan";
 import { isRegistrationOpen } from "../editions/select";
 import type { Edition, EditionFields, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
@@ -493,42 +493,44 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     async updateEdition(slug, patch, ifVersion) {
       await ready();
       const columns = editionColumns(patch);
-      if (Object.keys(columns).length === 0) return this.getEdition(slug);
-      // updated_at can hold microseconds (now()); versions are milliseconds.
-      const [row] = await sql<EditionRow[]>`
-        update editions set ${sql({ ...columns, updated_at: new Date() })}
-        where slug = ${slug}
-        ${ifVersion ? sql`and date_trunc('milliseconds', updated_at) = ${new Date(ifVersion)}` : sql``}
-        returning *
-      `;
-      return row ? toEdition(row) : null;
+      return sql.begin(async (tx) => {
+        // The same lock as createEdition: day checks see every other change.
+        await tx`select pg_advisory_xact_lock(hashtext('backyard:editions'))`;
+        const editions = (await tx<EditionRow[]>`select * from editions`).map(toEdition);
+        const current = editions.find((e) => e.slug === slug);
+        if (!current) return { kind: "not-found" as const };
+        if (ifVersion && current.updatedAt !== ifVersion) return { kind: "changed" as const };
+        const clash = dayClash(editions, current, { ...current, ...patch });
+        if (clash) return { kind: "date-taken" as const, edition: clash };
+        if (Object.keys(columns).length === 0) return { kind: "updated" as const, edition: current };
+        const [row] = await tx<EditionRow[]>`
+          update editions set ${tx({ ...columns, updated_at: new Date() })}
+          where slug = ${slug} returning *
+        `;
+        return { kind: "updated" as const, edition: toEdition(row) };
+      });
     },
 
     async deleteEdition(slug) {
       await ready();
-      return sql.begin(async (tx) => {
+      const result = await sql.begin(async (tx) => {
         // The same lock as register, so nobody signs up mid-delete.
         await tx`select pg_advisory_xact_lock(hashtext(${slug}))`;
-        const [edition] = await tx<Pick<EditionRow, "status" | "poster_src">[]>`
-          select status, poster_src from editions where slug = ${slug}
+        const [edition] = await tx<Pick<EditionRow, "status">[]>`
+          select status from editions where slug = ${slug}
         `;
-        if (!edition) return "not-found";
-        if (edition.status !== "draft") return "not-draft";
+        if (!edition) return "not-found" as const;
+        if (edition.status !== "draft") return "not-draft" as const;
         const [{ count }] = await tx<{ count: number }[]>`
           select count(*)::int as count from registrations where event_slug = ${slug}
         `;
-        if (count > 0) return "has-registrations";
+        if (count > 0) return "has-registrations" as const;
         await tx`delete from editions where slug = ${slug}`;
-        // Its poster too, unless another date shows the same image.
-        const posterId = /^\/posters\/([0-9a-f]{32})\./.exec(edition.poster_src ?? "")?.[1];
-        if (posterId) {
-          await tx`
-            delete from posters where id = ${posterId}
-              and not exists (select 1 from editions where poster_src like ${`/posters/${posterId}.%`})
-          `;
-        }
-        return "deleted";
+        return "deleted" as const;
       });
+      // Its poster too, unless another date shows the same image.
+      if (result === "deleted") await this.sweepPosters();
+      return result;
     },
 
     async unpublishEdition(slug) {
@@ -577,12 +579,20 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       `;
     },
 
-    async deletePosterIfUnused(id) {
+    async sweepPosters() {
       await ready();
       await sql`
-        delete from posters where id = ${id}
-          and not exists (select 1 from editions where poster_src like ${`/posters/${id}.%`})
+        delete from posters p
+        where not exists (select 1 from editions where poster_src like '/posters/' || p.id || '.%')
       `;
+    },
+
+    async posterType(id) {
+      await ready();
+      const [row] = await sql<Pick<PosterRow, "content_type">[]>`
+        select content_type from posters where id = ${id}
+      `;
+      return row?.content_type ?? null;
     },
 
     async getPoster(id) {

@@ -24,11 +24,12 @@ Built with Next.js 16 (App Router, Cache Components), Tailwind CSS 4 and Postgre
 Everything about a date is managed from **`/admin/editions`**; no code changes
 or redeploys:
 
-1. **Plan next month** copies the latest date to the same slot next month (the
-   last Friday stays the last Friday), with the same times, venue and limits.
-   Its sign-ups open when the previous date's close, so people at the BBQ can
-   sign up for the next one. Check the date, then **Save & publish** (or save a
-   draft; drafts are never public).
+1. **Plan next month** copies the latest date to the same slot in the next
+   month without a date (the last Friday stays the last Friday), with the same
+   times, venue and limits. Its sign-ups open when the date before it starts,
+   so people at that BBQ can sign up for the next one. Check the date, then
+   **Save & publish** (or save a draft; drafts are never public). There can
+   only be one date per day.
 2. **Upload the poster** on the date's page. Photos are shrunk in the browser,
    so any size works. Until there's a poster, the site shows a date card.
 3. The homepage switches to the next date by itself once the current one ends

@@ -57,6 +57,14 @@ export type CreateEditionResult =
   /** Another edition is already on that day. */
   | { kind: "date-taken"; edition: Edition };
 
+export type UpdateEditionResult =
+  | { kind: "updated"; edition: Edition }
+  | { kind: "not-found" }
+  /** It changed after the version the caller saw. */
+  | { kind: "changed" }
+  /** The change would put two dates on one day. */
+  | { kind: "date-taken"; edition: Edition };
+
 export type DeleteEditionResult = "deleted" | "not-found" | "not-draft" | "has-registrations";
 
 export interface EditionStats {

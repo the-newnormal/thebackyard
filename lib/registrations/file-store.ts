@@ -1,7 +1,7 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FIRST_EDITION_SEED } from "@/content/series";
-import { sameDayEdition, slugFor } from "../editions/plan";
+import { dayClash, sameDayEdition, slugFor } from "../editions/plan";
 import { isRegistrationOpen } from "../editions/select";
 import type { Edition, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
@@ -90,6 +90,23 @@ const updateWhere = (
     await save(rows);
     return rows[index];
   });
+
+/** Deletes posters no edition shows. Call inside exclusive(). */
+async function sweep() {
+  const used = new Set(
+    (await loadEditions()).flatMap((e) => /^\/posters\/([0-9a-f]{32})\./.exec(e.poster?.src ?? "")?.[1] ?? []),
+  );
+  let files: string[];
+  try {
+    files = await readdir(POSTERS);
+  } catch {
+    return;
+  }
+  for (const file of files) {
+    const id = file.split(".")[0];
+    if (!used.has(id)) await rm(path.join(POSTERS, file), { force: true });
+  }
+}
 
 export function createFileStore(): RegistrationStore {
   return {
@@ -228,10 +245,14 @@ export function createFileStore(): RegistrationStore {
       exclusive(async () => {
         const editions = await loadEditions();
         const index = editions.findIndex((e) => e.slug === slug);
-        if (index === -1 || (ifVersion && editions[index].updatedAt !== ifVersion)) return null;
-        editions[index] = { ...editions[index], ...patch, updatedAt: new Date().toISOString() };
+        if (index === -1) return { kind: "not-found" as const };
+        const current = editions[index];
+        if (ifVersion && current.updatedAt !== ifVersion) return { kind: "changed" as const };
+        const clash = dayClash(editions, current, { ...current, ...patch });
+        if (clash) return { kind: "date-taken" as const, edition: clash };
+        editions[index] = { ...current, ...patch, updatedAt: new Date().toISOString() };
         await saveEditions(editions);
-        return editions[index];
+        return { kind: "updated" as const, edition: editions[index] };
       }),
 
     deleteEdition: (slug) =>
@@ -241,14 +262,8 @@ export function createFileStore(): RegistrationStore {
         if (!edition) return "not-found";
         if (edition.status !== "draft") return "not-draft";
         if ((await load()).some((r) => r.eventSlug === slug)) return "has-registrations";
-        const rest = editions.filter((e) => e !== edition);
-        await saveEditions(rest);
-        // Its poster too, unless another date shows the same image.
-        const posterId = /^\/posters\/([0-9a-f]{32})\./.exec(edition.poster?.src ?? "")?.[1];
-        if (posterId && !rest.some((e) => e.poster?.src.startsWith(`/posters/${posterId}.`))) {
-          await rm(path.join(POSTERS, `${posterId}.bin`), { force: true });
-          await rm(path.join(POSTERS, `${posterId}.json`), { force: true });
-        }
+        await saveEditions(editions.filter((e) => e !== edition));
+        await sweep();
         return "deleted";
       }),
 
@@ -281,13 +296,15 @@ export function createFileStore(): RegistrationStore {
       await writeJson(path.join(POSTERS, `${meta.id}.json`), meta);
     },
 
-    deletePosterIfUnused: (id) =>
-      exclusive(async () => {
-        const used = (await loadEditions()).some((e) => e.poster?.src.startsWith(`/posters/${id}.`));
-        if (used) return;
-        await rm(path.join(POSTERS, `${id}.bin`), { force: true });
-        await rm(path.join(POSTERS, `${id}.json`), { force: true });
-      }),
+    sweepPosters: () => exclusive(sweep),
+
+    async posterType(id) {
+      const meta = await readJson<Omit<StoredPoster, "bytes"> | null>(
+        path.join(POSTERS, `${id}.json`),
+        () => null,
+      );
+      return meta?.contentType ?? null;
+    },
 
     async getPoster(id) {
       const meta = await readJson<Omit<StoredPoster, "bytes"> | null>(

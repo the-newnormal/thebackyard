@@ -92,12 +92,17 @@ export function EditionForm({
         </div>
       )}
 
-      {/* Starts afresh whenever the date changes on the server, so no field
-          holds a value from before (e.g. a close time since changed). */}
+      {/* Starts afresh when a field it edits changes on the server (e.g. Close
+          sign-ups now), so it never posts an old value with a newer version.
+          A poster or status change keeps whatever is being typed. */}
       <Fields
-        key={version ?? "new"}
-        values={(state.values ?? initial) as EditionFormValues}
-        errors={state.fieldErrors ?? {}}
+        key={JSON.stringify(initial)}
+        values={
+          state.values && state.version === version
+            ? (state.values as unknown as EditionFormValues)
+            : initial
+        }
+        errors={state.version === version ? (state.fieldErrors ?? {}) : {}}
       />
 
       <div className="flex flex-wrap gap-3">
@@ -229,7 +234,8 @@ function Fields({
         </div>
         <p className="text-sm text-muted">
           Once it’s full, new sign-ups join the waitlist. Lowering the limit keeps everyone
-          already confirmed.
+          already confirmed; raising it doesn’t move anyone off the waitlist, so use “Give a
+          spot” on the guest list.
         </p>
       </Group>
 

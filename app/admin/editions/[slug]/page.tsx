@@ -67,7 +67,8 @@ async function EditEdition({
         <span className="text-muted">ID: {slug}</span>
       </p>
 
-      {saved && (
+      {((saved === "published" && edition.status === "published") ||
+        (saved === "draft" && edition.status === "draft")) && (
         <p role="status" className="mt-6 rounded-2xl bg-lime/40 px-5 py-4 font-semibold text-forest-deep">
           {saved === "published"
             ? `Published. ${whenPublic(edition, editions, now)} Add a poster below.`

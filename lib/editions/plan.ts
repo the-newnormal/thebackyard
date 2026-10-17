@@ -131,9 +131,27 @@ export function sameDayEdition(
 }
 
 /**
+ * The date `edition` would clash with if changed to `next`: moving to another
+ * day needs that day to be free; anything not called off needs its day free of
+ * other dates that aren't called off.
+ */
+export function dayClash(editions: Edition[], current: Edition, next: Edition): Edition | undefined {
+  const others = editions.filter((e) => e.slug !== current.slug);
+  if (sgtParts(next.startsAt).date !== sgtParts(current.startsAt).date) {
+    return sameDayEdition(others, next.startsAt);
+  }
+  if (next.status === "cancelled") return undefined;
+  return sameDayEdition(
+    others.filter((e) => e.status !== "cancelled"),
+    next.startsAt,
+  );
+}
+
+/**
  * Defaults for "Plan next month": the same slot in the next month that has no
  * date yet, with the same times, venue and limits. Sign-ups open when the
- * date before it starts (so people at that BBQ can sign up for the next one)
+ * published date before it starts (so people at that BBQ can sign up for the
+ * next one)
  * and close at the start. The poster and notes are specific to one date, so
  * they're left out.
  */
@@ -159,8 +177,9 @@ export function planDefaults(
   }
 
   const startsAt = sgtInstant(date, values.startTime);
+  // A date that's called off (or still a draft) isn't a BBQ people are at.
   const previous = editions
-    .filter((e) => e.startsAt < startsAt)
+    .filter((e) => e.status === "published" && e.startsAt < startsAt)
     .sort((a, b) => b.startsAt.localeCompare(a.startsAt))[0];
   return {
     ...values,

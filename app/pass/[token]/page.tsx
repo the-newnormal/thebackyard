@@ -191,8 +191,11 @@ function Ticket({
           <p className="mx-auto mt-3 max-w-sm text-muted">
             {next && next.slug === edition?.slug ? (
               <>This registration was cancelled. Changed your mind? {nextLink}.</>
-            ) : state === "upcoming" ? (
-              <>This registration was cancelled. {opensLater}</>
+            ) : state === "upcoming" && edition?.registrationOpensAt ? (
+              <>
+                This registration was cancelled. Sign-ups for {eventDateShort(edition)} open{" "}
+                {formatMoment(edition.registrationOpensAt)}.
+              </>
             ) : (
               <>
                 This registration was cancelled

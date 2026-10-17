@@ -1,6 +1,7 @@
 import type {
   CreateEditionResult,
   DeleteEditionResult,
+  UpdateEditionResult,
   Edition,
   EditionFields,
   EditionStats,
@@ -100,14 +101,16 @@ export interface RegistrationStore {
   /** Generates the slug from the start date; one edition per day. */
   createEdition(fields: EditionFields): Promise<CreateEditionResult>;
   /**
-   * null if there's no such edition, or (with `ifVersion`) if it has changed
-   * since that `updatedAt`.
+   * Applies `patch` unless (with `ifVersion`) the edition has changed since
+   * that `updatedAt`, or the result would put two dates on one day: none may
+   * share a day with another that isn't called off, and none may move onto a
+   * day that has any other date.
    */
   updateEdition(
     slug: string,
     patch: Partial<EditionFields>,
     ifVersion?: string,
-  ): Promise<Edition | null>;
+  ): Promise<UpdateEditionResult>;
   /** Only drafts nobody has registered for can be deleted. */
   deleteEdition(slug: string): Promise<DeleteEditionResult>;
   /** Back to draft, only while nobody has registered; false otherwise. */
@@ -115,8 +118,10 @@ export interface RegistrationStore {
   /** Headcounts for every edition that has registrations, keyed by slug. */
   editionStats(): Promise<Record<string, EditionStats>>;
   putPoster(poster: StoredPoster): Promise<void>;
-  /** Deletes a poster no edition shows any more. */
-  deletePosterIfUnused(id: string): Promise<void>;
+  /** Deletes every poster no edition shows any more. */
+  sweepPosters(): Promise<void>;
+  /** The poster's type without its bytes, or null if there's no such poster. */
+  posterType(id: string): Promise<StoredPoster["contentType"] | null>;
   getPoster(id: string): Promise<StoredPoster | null>;
 }
 
