@@ -16,6 +16,7 @@ import {
   sendVerificationCode,
 } from "@/lib/phone-verification";
 import { getStore, StoreNotConfiguredError } from "@/lib/registrations";
+import type { Registration } from "@/lib/registrations/types";
 import { isSingaporeNumber } from "@/lib/registrations/phone";
 import { normalizePhone, phoneSchema, registrationSchema } from "@/lib/registrations/schema";
 
@@ -53,10 +54,15 @@ const RELOAD =
 const RESEND_AFTER_MS = 10 * 60 * 1000;
 const resent = new Map<string, number>();
 
-function mayResend(passToken: string, nowMs: number): boolean {
-  const last = resent.get(passToken);
-  if (last !== undefined && nowMs - last < RESEND_AFTER_MS) return false;
-  resent.set(passToken, nowMs);
+/** Whether the pass is in their inbox: sent now, or within the last 10 minutes. */
+async function resendPass(registration: Registration, edition: Edition): Promise<boolean> {
+  const now = Date.now();
+  for (const [token, at] of resent) {
+    if (now - at >= RESEND_AFTER_MS) resent.delete(token);
+  }
+  if (resent.has(registration.passToken)) return true;
+  if (!(await sendConfirmationEmail(registration, edition))) return false;
+  resent.set(registration.passToken, now);
   return true;
 }
 
@@ -192,17 +198,10 @@ export async function register(
     // registered with. The error sits on the phone question, which drops the
     // skipped check so a new code is sent next time.
     if (samePhone) {
-      if (!isEmailConfigured()) {
-        return {
-          message: "You’re already registered. Confirm your number with a texted code to get your pass back.",
-          fieldErrors: { phone: ["Confirm this number with a texted code"] },
-        };
-      }
-      if (mayResend(registration.passToken, Date.now())) {
-        after(() => sendConfirmationEmail(registration, edition));
-      }
       return {
-        message: `You’re already registered, so we’ve emailed your pass to ${registration.email}. Or confirm your number with a texted code to open it here.`,
+        message: (await resendPass(registration, edition))
+          ? `You’re already registered, so we’ve emailed your pass to ${registration.email}. Or confirm your number with a texted code to open it here.`
+          : "You’re already registered. Confirm your number with a texted code to get your pass back.",
         fieldErrors: { phone: ["Confirm this number with a texted code"] },
       };
     }
