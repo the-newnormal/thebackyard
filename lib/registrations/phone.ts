@@ -13,6 +13,12 @@ export const PHONE_PATTERN = /^(\+(?!65)\d{8,15}|[3689]\d{7})$/;
 
 /** Joins a country code and a number typed the local way, e.g. "+60" + "012-345 6789". */
 export function composePhone(dialCode: string, local: string): string {
+  const digits = local.replace(/\D/g, "");
+  // Pasted or autofilled with its own country code ("+60 12…", "0060 12…").
+  if (/^\s*(\+|00)/.test(local)) return `+${digits.replace(/^00/, "")}`;
   // Drop the trunk 0 people dial at home; it isn't part of the international number.
-  return `${dialCode}${local.replace(/\D/g, "").replace(/^0+/, "")}`;
+  const national = digits.replace(/^0+/, "");
+  // An SG number with 65 in front but no +.
+  if (dialCode === "+65" && /^65\d{8}$/.test(national)) return `+${national}`;
+  return `${dialCode}${national}`;
 }

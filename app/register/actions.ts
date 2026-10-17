@@ -16,10 +16,12 @@ import {
 import { getStore, StoreNotConfiguredError } from "@/lib/registrations";
 import { normalizePhone, phoneSchema, registrationSchema } from "@/lib/registrations/schema";
 
+/** A date that is taking sign-ups, offered when the one being filled in isn't. */
+export type OtherDate = { href: string; label: string; edition: string };
+
 export type RegisterState = {
   message?: string;
-  /** Shown after the message, e.g. to the next open date. */
-  link?: { href: string; label: string };
+  link?: OtherDate;
   fieldErrors?: Partial<Record<string, string[]>>;
 };
 
@@ -40,6 +42,8 @@ const FIELDS = [
 ];
 
 const CLOSED = "Registration has closed for this one — see you at the next Backyard!";
+const RELOAD =
+  "We’ve updated the sign-up form since you opened this page. Reload the page to register.";
 
 /**
  * The date a form signs up for: the one it names, or, for forms from before
@@ -67,6 +71,7 @@ function closed(edition: Edition | undefined, open: Edition[]): RegisterState {
     link: next && {
       href: `/register?edition=${next.slug}`,
       label: `Register for ${eventDateShort(next)} instead →`,
+      edition: next.slug,
     },
   };
 }
@@ -90,9 +95,7 @@ export async function register(
 
   // A page opened before the step-by-step questions has none of them; its old
   // form couldn't show which answers are missing.
-  if (!formData.has("residentStatus")) {
-    return { message: "We’ve updated the sign-up form since you opened this page. Reload the page to register." };
-  }
+  if (!formData.has("residentStatus")) return { message: RELOAD };
 
   let target;
   try {
@@ -119,6 +122,8 @@ export async function register(
 
   const answers = parsed.data;
   const verifying = isPhoneVerificationEnabled();
+  // Opened before texted codes were switched on, so it never asked for one.
+  if (verifying && formData.get("verifyPhone") !== "on") return { message: RELOAD };
   const phoneToken = String(formData.get("phoneToken") ?? "");
   if (verifying && !verifyPhoneToken(phoneToken, answers.phone, Date.now())) {
     return {
@@ -182,12 +187,15 @@ export async function register(
 export async function sendPhoneCode(
   rawPhone: string,
   edition: string,
-): Promise<{ error?: string }> {
-  if (!isPhoneVerificationEnabled()) return {};
+): Promise<{ error?: string; link?: OtherDate }> {
+  // Only forms that ask for a code call this; one opened before codes were
+  // switched off would wait for a text that never comes.
+  if (!isPhoneVerificationEnabled()) return { error: RELOAD };
   try {
     const target = await signUpTarget(String(edition));
     if (!target.edition || !isRegistrationOpen(target.edition, target.now)) {
-      return { error: closed(target.edition, target.open).message };
+      const { message, link } = closed(target.edition, target.open);
+      return { error: message, link };
     }
   } catch (error) {
     return { error: failed(error).message };

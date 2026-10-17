@@ -11,7 +11,13 @@ import {
   useSyncExternalStore,
   useTransition,
 } from "react";
-import { checkPhoneCode, register, sendPhoneCode, type RegisterState } from "@/app/register/actions";
+import {
+  checkPhoneCode,
+  register,
+  sendPhoneCode,
+  type OtherDate,
+  type RegisterState,
+} from "@/app/register/actions";
 import { series } from "@/content/series";
 import {
   MAIN_RACES,
@@ -260,14 +266,26 @@ export function RegistrationFlow({
   const [notice, setNotice] = useState<{
     step: StepKey;
     text: string;
-    link?: RegisterState["link"];
+    link?: OtherDate;
   } | null>(null);
+
+  // A link to another date only changes the query, so this component stays.
+  // Start that date at its welcome screen, which offers the answers back.
+  const [shownFor, setShownFor] = useState(edition);
+  if (shownFor !== edition) {
+    setShownFor(edition);
+    setStarted(false);
+    setResumeSettled(false);
+    setNotice(null);
+    setErrors({});
+  }
 
   const [code, setCode] = useState("");
   const [codeSentAt, setCodeSentAt] = useState(0);
   const [now, setNow] = useState(0);
   const [phoneBusy, startPhoneWork] = useTransition();
   const phoneInput = useRef<HTMLInputElement>(null);
+  const pendingPick = useRef(0);
 
   const [, submitAction, submitting] = useActionState(
     async (prev: RegisterState, formData: FormData) => {
@@ -338,7 +356,9 @@ export function RegistrationFlow({
     setErrors((e) => ({ ...e, [from]: undefined }));
     const list = stepsFor(vals, verifyPhone);
     const to = list[list.indexOf(from) + 1];
-    window.setTimeout(() => {
+    // A second tap before we move on replaces the first, and with it where we go.
+    window.clearTimeout(pendingPick.current);
+    pendingPick.current = window.setTimeout(() => {
       setDirection(1);
       setNotice(null);
       // Ignore a second tap that lands after we've already moved on.
@@ -364,6 +384,10 @@ export function RegistrationFlow({
     const from = step;
     startPhoneWork(async () => {
       const result = await sendPhoneCode(phone.composed, edition);
+      if (result.link) {
+        setNotice({ step: from, text: result.error ?? "", link: result.link });
+        return;
+      }
       if (result.error) {
         setErrors((er) => ({ ...er, [from]: result.error }));
         return;
@@ -402,6 +426,17 @@ export function RegistrationFlow({
     setErrors(byStep);
     if (target !== step) go(target, -1);
     setNotice(result.message ? { step: target, text: result.message, link: result.link } : null);
+  }
+
+  /** Keeps the answers for another date's form, before following a link to it. */
+  function carryOver(to: string) {
+    const progress: Progress = { step, values, verified, savedAt: Date.now() };
+    try {
+      localStorage.setItem(progressKey(to), JSON.stringify(progress));
+      localStorage.removeItem(key);
+    } catch {
+      // They'll answer again.
+    }
   }
 
   function start() {
@@ -473,7 +508,11 @@ export function RegistrationFlow({
       {notice.link && (
         <>
           {" "}
-          <Link href={notice.link.href} className="underline underline-offset-4">
+          <Link
+            href={notice.link.href}
+            onClick={() => carryOver(notice.link!.edition)}
+            className="underline underline-offset-4"
+          >
             {notice.link.label}
           </Link>
         </>
@@ -590,15 +629,20 @@ export function RegistrationFlow({
               value={values.birthdate}
               onChange={(e) => {
                 const raw = e.target.value;
-                const digits = raw.replace(/\D/g, "");
-                // Autofill gives YYYY-MM-DD.
-                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return update({ birthdate: birthdateForInput(raw) });
+                // Autofill gives YYYY-MM-DD; a pasted date may skip zeros (1/5/2007).
+                const whole = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : parseBirthdate(raw);
+                if (whole) return update({ birthdate: birthdateForInput(whole) });
+                // A slash typed after one digit: "1/" means "01".
+                const digits = raw.replace(/(^|\/)(\d)\/$/, "$10$2").replace(/\D/g, "");
                 // Backspacing over a slash takes the digit before it too.
                 const deletedSlash =
                   raw.length < values.birthdate.length &&
                   digits === values.birthdate.replace(/\D/g, "");
+                const at = raw.slice(0, e.target.selectionStart ?? raw.length).replace(/\D/g, "").length;
                 update({
-                  birthdate: formatBirthdateInput(deletedSlash ? digits.slice(0, -1) : digits),
+                  birthdate: formatBirthdateInput(
+                    deletedSlash ? digits.slice(0, Math.max(0, at - 1)) + digits.slice(at) : digits,
+                  ),
                 });
               }}
               placeholder="DD/MM/YYYY"
@@ -869,7 +913,12 @@ export function RegistrationFlow({
               to manage your registration and contact you about this event.
             </p>
 
-            <Answers edition={edition} values={values} verified={verified} />
+            <Answers
+              edition={edition}
+              verifyPhone={verifyPhone}
+              values={values}
+              verified={verified}
+            />
             <Nav
               onBack={back}
               pending={submitting}
@@ -1061,10 +1110,12 @@ function Nav({
 /** Every answer, as the registration action expects it. */
 function Answers({
   edition,
+  verifyPhone,
   values,
   verified,
 }: {
   edition: string;
+  verifyPhone: boolean;
   values: Values;
   verified: Verified | null;
 }) {
@@ -1083,6 +1134,8 @@ function Answers({
     email: values.email,
     phone: phone.composed,
     phoneToken: verified?.phone === phone.normalized ? verified.token : "",
+    // So the server can tell this form asked for a code.
+    verifyPhone: verifyPhone ? "on" : "",
     marketingOptIn: values.marketingOptIn,
     consent: "on",
   };

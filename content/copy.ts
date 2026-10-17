@@ -75,7 +75,7 @@ export const faqs = [
   },
   {
     q: "How often is Backyard?",
-    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram, or tick “keep me posted” when you register, to hear when the next date opens.`,
+    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram, or say yes to “can we keep you posted?” when you register, to hear when the next date opens.`,
   },
   {
     q: "How do I get there?",
