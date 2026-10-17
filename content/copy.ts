@@ -64,7 +64,7 @@ export const pdpaConsent =
 export const faqs = [
   {
     q: "Is it really free?",
-    a: "Yep. The BBQ is on us — we just ask you to register so we know how much food to prep.",
+    a: "Backyard is free for everyone, with no fixed fee and no expectation of payment. We’re a volunteer-run community that keeps going because people pay it forward. If Backyard has meant something to you, a contribution of any size helps keep it open for the next person.",
   },
   {
     q: "Can I bring friends?",
