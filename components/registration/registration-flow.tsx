@@ -11,6 +11,7 @@ import {
   useTransition,
 } from "react";
 import { checkPhoneCode, register, sendPhoneCode, type RegisterState } from "@/app/register/actions";
+import { pdpaConsent } from "@/content/copy";
 import { event } from "@/content/event";
 import {
   MAIN_RACES,
@@ -902,16 +903,15 @@ export function RegistrationFlow({
               can we keep you posted?
             </Question>
             {banner}
-            <p className="-mt-3 mb-6 text-lg leading-relaxed text-ink">
-              Say yes and we’ll let you know about future Backyard events. You can opt out
-              anytime.
+            <p id={`${headingId}-pdpa`} className="-mt-3 mb-6 text-lg leading-relaxed text-ink">
+              {pdpaConsent}
             </p>
             <ChoiceGrid
               labelledBy={headingId}
-              describedBy={describedBy}
+              describedBy={[`${headingId}-pdpa`, describedBy].filter(Boolean).join(" ")}
               options={[
-                { value: "yes", label: "Yes!" },
-                { value: "no", label: "Nope" },
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
               ]}
               columns={2}
               value={values.marketingOptIn}

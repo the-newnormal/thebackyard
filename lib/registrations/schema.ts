@@ -63,7 +63,7 @@ export const registrationSchema = z
       .max(200, "That email is a bit long")
       .regex(EMAIL_PATTERN, "That email doesn’t look right"),
     phone: phoneSchema,
-    // The PDPA question: may we keep them posted about future events?
+    // The PDPA question (content/copy.ts): Yes or No, and either can register.
     marketingOptIn: z.enum(["yes", "no"], "Pick one").transform((v) => v === "yes"),
     consent: z.literal("on", "We need your OK to hold your details for this event"),
   })
