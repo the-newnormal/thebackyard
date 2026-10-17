@@ -48,6 +48,18 @@ const CLOSED = "Registration has closed for this one — see you at the next Bac
 const RELOAD =
   "We’ve updated the sign-up form since you opened this page. Reload the page to register.";
 
+// When a returning guest can't confirm their number, their pass is emailed
+// again, at most once per 10 minutes each (per server instance).
+const RESEND_AFTER_MS = 10 * 60 * 1000;
+const resent = new Map<string, number>();
+
+function mayResend(passToken: string, nowMs: number): boolean {
+  const last = resent.get(passToken);
+  if (last !== undefined && nowMs - last < RESEND_AFTER_MS) return false;
+  resent.set(passToken, nowMs);
+  return true;
+}
+
 /**
  * The date a form signs up for: the one it names, or, for forms from before
  * dates had names, the soonest one taking sign-ups. Drafts are never named.
@@ -176,12 +188,21 @@ export async function register(
     if (samePhone && (!needsCode || check?.verified)) {
       redirect(`/pass/${registration.passToken}?existing=1`);
     }
-    // On the phone question, which drops the skipped check so a new code is sent.
+    // Their code couldn't be checked, so the pass goes to the email it was
+    // registered with. The error sits on the phone question, which drops the
+    // skipped check so a new code is sent next time.
     if (samePhone) {
+      if (!isEmailConfigured()) {
+        return {
+          message: "You’re already registered. Confirm your number with a texted code to get your pass back.",
+          fieldErrors: { phone: ["Confirm this number with a texted code"] },
+        };
+      }
+      if (mayResend(registration.passToken, Date.now())) {
+        after(() => sendConfirmationEmail(registration, edition));
+      }
       return {
-        message: isEmailConfigured()
-          ? "You’re already registered. Confirm your number with a texted code to get your pass back, or check your inbox for it."
-          : "You’re already registered. Confirm your number with a texted code to get your pass back.",
+        message: `You’re already registered, so we’ve emailed your pass to ${registration.email}. Or confirm your number with a texted code to open it here.`,
         fieldErrors: { phone: ["Confirm this number with a texted code"] },
       };
     }
