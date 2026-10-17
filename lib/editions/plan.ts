@@ -150,8 +150,8 @@ export function dayClash(editions: Edition[], current: Edition, next: Edition): 
 /**
  * Defaults for "Plan next month": the same slot in the next month that has no
  * date yet, with the same times, venue and limits. Sign-ups open when the
- * published date before it starts (so people at that BBQ can sign up for the
- * next one)
+ * date before it (unless called off) starts, so people at that BBQ can sign
+ * up for the next one,
  * and close at the start. The poster and notes are specific to one date, so
  * they're left out.
  */
@@ -177,9 +177,9 @@ export function planDefaults(
   }
 
   const startsAt = sgtInstant(date, values.startTime);
-  // A date that's called off (or still a draft) isn't a BBQ people are at.
+  // A called-off date isn't a BBQ people will be at; a draft still is.
   const previous = editions
-    .filter((e) => e.status === "published" && e.startsAt < startsAt)
+    .filter((e) => e.status !== "cancelled" && e.startsAt < startsAt)
     .sort((a, b) => b.startsAt.localeCompare(a.startsAt))[0];
   return {
     ...values,

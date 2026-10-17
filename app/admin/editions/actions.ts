@@ -16,8 +16,8 @@ import { getStore } from "@/lib/registrations";
 
 export type EditionFormState = {
   message?: string;
-  /** The version a failed save was posted against (see edition-form.tsx). */
-  version?: string;
+  /** The form values a failed save was typed against (see edition-form.tsx). */
+  basis?: string;
   saved?: boolean;
   fieldErrors?: Partial<Record<string, string[]>>;
   values?: Record<string, string>;
@@ -49,25 +49,27 @@ export async function saveEdition(
   await requireAdmin();
   const values = Object.fromEntries(FIELDS.map((key) => [key, String(formData.get(key) ?? "")]));
   const version = String(formData.get("version") ?? "") || undefined;
+  const basis = String(formData.get("basis") ?? "");
   const parsed = editionFormSchema.safeParse(values);
   if (!parsed.success) {
     const fieldErrors: Record<string, string[]> = {};
     for (const issue of parsed.error.issues) {
       (fieldErrors[String(issue.path[0] ?? "form")] ??= []).push(issue.message);
     }
-    return { message: "A few things need fixing below.", fieldErrors, values, version };
+    return { message: "A few things need fixing below.", fieldErrors, values, basis };
   }
 
   const store = getStore();
   const slug = slugFrom(formData);
   const existing = slug ? await store.getEdition(slug) : null;
-  if (slug && !existing) return { message: "That date no longer exists.", values, version };
-  // A failed save keeps what was typed, but only for the version it was typed against.
+  if (slug && !existing) return { message: "That date no longer exists.", values, basis };
+  // A failed save keeps what was typed, as long as the saved values it was
+  // typed over haven't changed since.
   const fail = (message: string, field?: string, error?: string): EditionFormState => ({
     message,
     fieldErrors: field && error ? { [field]: [error] } : undefined,
     values,
-    version,
+    basis,
   });
   // Saving a form loaded before, say, "Close sign-ups now" would quietly undo it.
   const stale = () =>
@@ -109,8 +111,18 @@ export async function saveEdition(
   if (existing.status !== "draft") {
     const movedDay = sgtParts(existing.startsAt).date !== sgtParts(startsAt).date;
     const retimed = existing.startsAt !== startsAt || existing.endsAt !== endsAt;
+    const started = new Date(existing.startsAt) <= now;
+    // Pushing the start back past now would reopen sign-ups mid-event (and
+    // let the day change next).
+    if (started && retimed && new Date(startsAt) > now) {
+      return fail(
+        "This date has already started, so its start time stays. Use the note for guests to tell people about a delay.",
+        "startTime",
+        "Already started",
+      );
+    }
     // Its guest list (and check-ins) belong to the night it happened.
-    if (movedDay && new Date(existing.startsAt) <= now) {
+    if (movedDay && started) {
       return fail(
         "This date has already started, so it keeps its day and guest list. To plan another, use “Copy to next month” on the Dates page.",
         "date",

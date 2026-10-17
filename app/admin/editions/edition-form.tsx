@@ -75,10 +75,30 @@ export function EditionForm({
     if (state.message) alertRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [state]);
 
+  // The saved values the fields show; when they change on the server (e.g.
+  // Close sign-ups now) the fields start afresh, so an old value is never
+  // posted with a newer version. A poster or status change keeps the typing.
+  const basis = JSON.stringify(initial);
+  const echo = state.basis === basis;
+
+  // Unsaved edits are easy to miss when publishing or calling off from the
+  // panel above, so they're flagged at the bottom of the screen.
+  // Edited since the fields last started afresh, and not saved successfully since.
+  const [editedAt, setEditedAt] = useState<{ basis: string; state: EditionFormState } | null>(null);
+  const dirty =
+    editedAt !== null && editedAt.basis === basis && !(state.saved && state !== editedAt.state);
+  useEffect(() => {
+    if (!slug || !dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [slug, dirty]);
+
   return (
-    <form action={action} className="space-y-6">
+    <form action={action} onChange={() => setEditedAt({ basis, state })} className="space-y-6">
       {slug && <input type="hidden" name="slug" value={slug} />}
       {version && <input type="hidden" name="version" value={version} />}
+      <input type="hidden" name="basis" value={basis} />
 
       {state.message && (
         <div
@@ -92,17 +112,10 @@ export function EditionForm({
         </div>
       )}
 
-      {/* Starts afresh when a field it edits changes on the server (e.g. Close
-          sign-ups now), so it never posts an old value with a newer version.
-          A poster or status change keeps whatever is being typed. */}
       <Fields
-        key={JSON.stringify(initial)}
-        values={
-          state.values && state.version === version
-            ? (state.values as unknown as EditionFormValues)
-            : initial
-        }
-        errors={state.version === version ? (state.fieldErrors ?? {}) : {}}
+        key={basis}
+        values={echo && state.values ? (state.values as unknown as EditionFormValues) : initial}
+        errors={echo ? (state.fieldErrors ?? {}) : {}}
       />
 
       <div className="flex flex-wrap gap-3">
@@ -133,6 +146,22 @@ export function EditionForm({
           </>
         )}
       </div>
+
+      {slug && dirty && (
+        <div
+          role="status"
+          className="fixed inset-x-0 bottom-0 z-50 border-t-2 border-forest bg-mustard px-4 py-3"
+        >
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
+            <p className="font-semibold text-forest-deep">
+              You have unsaved changes to this date’s details.
+            </p>
+            <button type="submit" disabled={pending} className="btn btn-primary px-5 py-2 text-sm">
+              {pending ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

@@ -496,6 +496,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       return sql.begin(async (tx) => {
         // The same lock as createEdition: day checks see every other change.
         await tx`select pg_advisory_xact_lock(hashtext('backyard:editions'))`;
+        // And the row itself, so an unpublish or delete can't land in between.
+        const [locked] = await tx`select slug from editions where slug = ${slug} for update`;
+        if (!locked) return { kind: "not-found" as const };
         const editions = (await tx<EditionRow[]>`select * from editions`).map(toEdition);
         const current = editions.find((e) => e.slug === slug);
         if (!current) return { kind: "not-found" as const };
@@ -507,7 +510,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           update editions set ${tx({ ...columns, updated_at: new Date() })}
           where slug = ${slug} returning *
         `;
-        return { kind: "updated" as const, edition: toEdition(row) };
+        return row
+          ? { kind: "updated" as const, edition: toEdition(row) }
+          : { kind: "not-found" as const };
       });
     },
 
