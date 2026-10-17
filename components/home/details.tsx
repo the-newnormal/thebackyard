@@ -132,7 +132,7 @@ export function Details({
             </Row>
             <Row label="What" color="text-forest">
               {series.tagline.join(", ").replace(/^./, (c) => c.toUpperCase())}. Come as
-              you are{edition?.maxGuests === 0 ? "." : " — bring a friend or come solo."}
+              you are — bring a friend or come solo.
             </Row>
             <Row label="Cost" color="text-vermilion">
               Backyard is free for everyone, with no fixed fee and no expectation of payment.

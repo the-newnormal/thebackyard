@@ -16,6 +16,7 @@ export const DIETARY_OPTIONS = [
   { value: "other", label: "Other" },
 ] as const;
 
+/** Asked on the old one-page form; kept to label earlier sign-ups. */
 export const HEARD_FROM_OPTIONS = [
   { value: "instagram", label: "Instagram" },
   { value: "friend", label: "A friend" },
@@ -38,10 +39,23 @@ export interface Registration {
   name: string;
   email: string;
   phone: string;
+  /** True once the number was confirmed with a texted code. */
+  phoneVerified: boolean;
+  /** The demographic answers are null on sign-ups from before they were asked. */
+  residentStatus: string | null;
+  sex: string | null;
+  race: string | null;
+  /** YYYY-MM-DD */
+  birthdate: string | null;
+  occupation: string | null;
+  /** Only asked of students. */
+  school: string | null;
+  /** Friends registered alongside; only earlier sign-ups have any. */
   guests: number;
   dietary: Dietary;
   dietaryNotes: string | null;
   heardFrom: HeardFrom | null;
+  /** Their answer to the PDPA question: happy to hear about future events. */
   marketingOptIn: boolean;
   status: RegistrationStatus;
   checkedInAt: string | null;

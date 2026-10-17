@@ -30,8 +30,6 @@ export interface Edition {
   registrationClosesAt: string;
   /** Total people (registrants + guests); null means no cap. */
   capacity: number | null;
-  /** Friends one person can bring. */
-  maxGuests: number;
   venue: Venue;
   poster: Poster | null;
   /** Shown on the homepage, registration page, passes and emails. */

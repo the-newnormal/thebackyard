@@ -2,12 +2,10 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
-import { cache, Suspense } from "react";
+import { Suspense } from "react";
 import { PosterCard } from "@/components/home/poster-card";
-import { RegistrationForm } from "@/components/registration-form";
+import { RegistrationFlow } from "@/components/registration/registration-flow";
 import { Starburst } from "@/components/shapes";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
 import { series } from "@/content/series";
 import {
   editionState,
@@ -17,12 +15,8 @@ import {
   registrable,
 } from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
-import {
-  eventDateLong,
-  eventDateShort,
-  eventTimeRange,
-  formatMoment,
-} from "@/lib/format";
+import { eventDateLong, eventDateShort, eventTimeRange, formatMoment } from "@/lib/format";
+import { isPhoneVerificationEnabled } from "@/lib/phone-verification";
 import {
   getAvailability,
   getStore,
@@ -35,46 +29,34 @@ export const metadata: Metadata = {
   description: "Save your spot at Backyard, a free community BBQ in Singapore every month.",
 };
 
+const SCREEN =
+  "relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 py-14 text-center";
+
+// A page of its own: one question per screen, without the site header and
+// footer. The welcome screen renders here; the questions run in the browser.
 export default function RegisterPage({ searchParams }: PageProps<"/register">) {
   return (
-    <>
-      <SiteHeader cta={false} />
-      <main className="relative isolate flex-1 overflow-hidden">
-        <Starburst className="absolute -top-20 -right-24 -z-10 w-44 rotate-12 sm:-top-14 sm:-right-16 sm:w-64" />
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
-          <aside className="lg:sticky lg:top-24 lg:self-start">
-            <p className="font-serif text-2xl text-forest italic">{series.tagline.join(" | ")}</p>
-            <h1 className="mt-2 font-brush text-7xl leading-[0.9] text-forest sm:text-8xl">
-              pull up a chair
-            </h1>
-            <p className="mt-5 max-w-md text-lg leading-relaxed text-ink">
-              Registration is free. It just helps us prep enough food and know who’s coming.
-              Takes about a minute.
-            </p>
-            <Suspense fallback={<CardSkeleton />}>
-              <EditionCard searchParams={searchParams} />
-            </Suspense>
-          </aside>
-
-          <section
-            aria-label="Registration form"
-            className="rounded-3xl border-2 border-forest/15 bg-card/90 p-6 shadow-[0_24px_60px_-30px_rgb(31_64_41/0.45)] sm:p-10"
-          >
-            <Suspense fallback={<FormSkeleton />}>
-              <RegistrationGate searchParams={searchParams} />
-            </Suspense>
-          </section>
-        </div>
-      </main>
-      <SiteFooter cta={false} />
-    </>
+    <main className="flex flex-1 flex-col">
+      <Suspense
+        fallback={
+          <div className={SCREEN}>
+            <Welcome />
+            <div className="mt-9 h-[3.75rem] w-52 animate-pulse rounded-full bg-forest/15" />
+          </div>
+        }
+      >
+        <RegistrationGate searchParams={searchParams} />
+      </Suspense>
+    </main>
   );
 }
+
+type OpenAvailability = Exclude<Availability, { state: "closed" }>;
 
 type Target =
   | { kind: "unavailable" }
   | { kind: "error" }
-  | { kind: "open"; edition: Edition; availability: Exclude<Availability, { state: "closed" }> }
+  | { kind: "open"; edition: Edition; availability: OpenAvailability }
   | {
       kind: "not-open";
       /** The edition asked for, or the one coming up. */
@@ -88,11 +70,8 @@ type Target =
       now: Date;
     };
 
-/**
- * Which edition this visit registers for. One uncached read per request,
- * shared by the card and the form, so the two always agree.
- */
-const resolveTarget = cache(async (requested: string): Promise<Target> => {
+/** Which edition this visit registers for, from one uncached read. */
+async function resolveTarget(requested: string): Promise<Target> {
   if (!isStoreConfigured()) return { kind: "unavailable" };
   try {
     const editions = await getStore().listEditions();
@@ -118,43 +97,110 @@ const resolveTarget = cache(async (requested: string): Promise<Target> => {
     console.error("Couldn't load registration", error);
     return { kind: "error" };
   }
-});
-
-async function target(searchParams: PageProps<"/register">["searchParams"]) {
-  await connection();
-  const { edition } = await searchParams;
-  return resolveTarget(typeof edition === "string" ? edition : "");
 }
 
-async function EditionCard({ searchParams }: Pick<PageProps<"/register">, "searchParams">) {
-  const result = await target(searchParams);
-  const edition =
-    result.kind === "open"
-      ? result.edition
-      : result.kind === "not-open"
-        ? result.unknown
-          ? (result.alternative ?? result.opening)
-          : (result.edition ?? result.opening)
-        : null;
-  if (!edition) return null;
-  const { venue } = edition;
+async function RegistrationGate({ searchParams }: Pick<PageProps<"/register">, "searchParams">) {
+  await connection();
+  const { edition: requested } = await searchParams;
+  const result = await resolveTarget(typeof requested === "string" ? requested : "");
 
+  if (result.kind === "unavailable") {
+    return (
+      <Notice
+        title="registration opens soon"
+        body="We’re putting the final touches on sign-ups. Check back shortly!"
+      />
+    );
+  }
+  if (result.kind === "error") {
+    return (
+      <Notice
+        title="we couldn’t load registration"
+        body="Something went wrong on our side. Please try again in a moment."
+      />
+    );
+  }
+  if (result.kind === "not-open") return <NotOpen {...result} />;
+
+  const { edition, availability } = result;
   return (
-    <div className="mt-8 flex gap-5 rounded-2xl border-2 border-forest bg-card p-4 shadow-[6px_6px_0_var(--color-forest)]">
+    <RegistrationFlow
+      edition={edition.slug}
+      date={eventDateShort(edition)}
+      intro={<Welcome edition={edition} availability={availability} />}
+      waitlist={availability.state === "waitlist"}
+      verifyPhone={isPhoneVerificationEnabled()}
+    />
+  );
+}
+
+function Backdrop() {
+  return (
+    <>
+      <Starburst className="absolute -top-16 -right-20 -z-10 w-44 rotate-12 sm:-top-10 sm:-right-10 sm:w-64" />
+      <Starburst
+        variant={2}
+        color="var(--color-orange)"
+        scribble={false}
+        className="absolute -bottom-12 -left-16 -z-10 w-40 -rotate-12 sm:w-56"
+      />
+    </>
+  );
+}
+
+function Welcome({
+  edition,
+  availability,
+}: {
+  edition?: Edition;
+  availability?: OpenAvailability;
+}) {
+  return (
+    <>
+      <Backdrop />
+      <Link href="/" className="font-display text-3xl text-forest" aria-label="Backyard home">
+        BACKYARD
+      </Link>
+      <p className="mt-6 font-serif text-xl text-forest italic sm:text-2xl">
+        {series.tagline.join(" | ")}
+      </p>
+      <h1 className="mt-2 font-brush text-[clamp(4rem,17vw,7.5rem)] leading-[0.9] text-forest">
+        pull up a chair
+      </h1>
+      {availability && <StatusPill availability={availability} />}
+      <p className="mx-auto mt-5 max-w-md text-lg leading-relaxed text-ink">
+        Registration is free. It just helps us prep enough food and know who’s coming.
+      </p>
+      {availability?.state === "waitlist" && (
+        <p className="mx-auto mt-4 max-w-md rounded-xl bg-mustard/30 px-4 py-3 text-ink">
+          Every spot is taken or held for someone already waiting. Join the waitlist and we’ll
+          let you know if a spot opens up.
+        </p>
+      )}
+      {edition && <EditionCard edition={edition} />}
+    </>
+  );
+}
+
+/** The date being registered for: poster (or a date card), when, where and any note. */
+function EditionCard({ edition }: { edition: Edition }) {
+  const { venue } = edition;
+  return (
+    <div className="mx-auto mt-8 flex w-full max-w-md gap-5 rounded-2xl border-2 border-forest bg-card p-4 text-left shadow-[6px_6px_0_var(--color-forest)]">
       {edition.poster ? (
         <Image
           src={edition.poster.src}
           width={edition.poster.width}
           height={edition.poster.height}
           alt=""
-          className="w-24 shrink-0 -rotate-2 self-start rounded-sm bg-forest shadow-md sm:w-28"
-          sizes="112px"
+          className="w-20 shrink-0 -rotate-2 self-start rounded-sm bg-forest shadow-md sm:w-24"
+          sizes="96px"
         />
       ) : (
         <PosterCard
           edition={edition}
           compact
-          className="w-24 shrink-0 -rotate-2 self-start rounded-sm shadow-md sm:w-28"
+          className="w-20 shrink-0 -rotate-2 self-start rounded-sm shadow-md sm:w-24"
         />
       )}
       <dl className="space-y-2 text-[0.95rem] leading-snug">
@@ -175,7 +221,7 @@ async function EditionCard({ searchParams }: Pick<PageProps<"/register">, "searc
             {venue.address}
           </dd>
         </div>
-        {edition.notice && (
+        {edition.notice && edition.status !== "cancelled" && (
           <div>
             <dt className="font-heading text-xs tracking-widest text-forest uppercase">Note</dt>
             <dd>{edition.notice}</dd>
@@ -186,62 +232,23 @@ async function EditionCard({ searchParams }: Pick<PageProps<"/register">, "searc
   );
 }
 
-async function RegistrationGate({ searchParams }: Pick<PageProps<"/register">, "searchParams">) {
-  const result = await target(searchParams);
-
-  if (result.kind === "unavailable") {
+function StatusPill({ availability }: { availability: OpenAvailability }) {
+  if (availability.state === "waitlist") {
     return (
-      <Notice
-        title="Registration opens soon"
-        body="We’re putting the final touches on sign-ups. Check back shortly!"
-      />
+      <span className="mt-5 rounded-full bg-mustard px-3 py-1 text-sm font-bold text-forest-deep">
+        Waitlist open
+      </span>
     );
   }
-  if (result.kind === "error") {
-    return (
-      <Notice
-        title="We couldn’t load registration"
-        body="Something went wrong on our side. Please try again in a moment."
-      />
-    );
-  }
-  if (result.kind === "not-open") return <NotOpen {...result} />;
-
-  const { edition, availability } = result;
-  const waitlist = availability.state === "waitlist";
+  const few = availability.spotsLeft !== null && availability.spotsLeft <= 20;
   return (
-    <>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-heading text-3xl text-forest">
-            {waitlist ? "Join the waitlist" : "Save your spot"}
-          </h2>
-          <p className="mt-1 font-semibold text-muted">for {eventDateLong(edition)}</p>
-        </div>
-        <StatusPill availability={availability} />
-      </div>
-      {waitlist && (
-        <p className="-mt-4 mb-8 rounded-xl bg-mustard/30 px-4 py-3 text-ink">
-          Every spot is taken or held for someone already waiting. Join the waitlist and we’ll
-          let you know if a spot opens up.
-        </p>
-      )}
-      {availability.state === "open" &&
-        availability.spotsLeft !== null &&
-        availability.spotsLeft <= edition.maxGuests && (
-          <p className="-mt-4 mb-8 rounded-xl bg-mustard/30 px-4 py-3 text-ink">
-            {availability.spotsLeft === 1
-              ? "If you’re bringing friends, you’ll join the waitlist."
-              : `Groups of more than ${availability.spotsLeft} will join the waitlist.`}
-          </p>
-        )}
-      <RegistrationForm
-        edition={edition.slug}
-        maxGuests={edition.maxGuests}
-        organiser={series.organiser}
-        waitlist={waitlist}
-      />
-    </>
+    <span
+      className={`mt-5 rounded-full px-3 py-1 text-sm font-bold ${few ? "bg-red text-card" : "bg-lime text-forest-deep"}`}
+    >
+      {few
+        ? `Only ${availability.spotsLeft} ${availability.spotsLeft === 1 ? "spot" : "spots"} left`
+        : "Registration open"}
+    </span>
   );
 }
 
@@ -263,7 +270,7 @@ function NotOpen({
   if (unknown) {
     return (
       <Notice
-        title="That date isn’t taking sign-ups"
+        title="that date isn’t taking sign-ups"
         body={
           alternative
             ? `Sign-ups for ${eventDateLong(alternative)} are open.`
@@ -271,6 +278,7 @@ function NotOpen({
               `Follow @${series.contact.instagram} on Instagram to hear when the next date opens.`)
         }
         action={instead}
+        card={alternative ?? opening}
       />
     );
   }
@@ -278,12 +286,13 @@ function NotOpen({
   if (!edition) {
     return (
       <Notice
-        title="No date open right now"
+        title="no date open right now"
         body={
           opensLater ??
           `Backyard happens every month. Follow @${series.contact.instagram} on Instagram to hear when the next date opens.`
         }
         action={instead}
+        card={opening}
       />
     );
   }
@@ -294,28 +303,33 @@ function NotOpen({
       return (
         <Notice
           title={`${date} is called off`}
-          body={[edition.calledOffNote, opensLater].filter(Boolean).join(" ") || "Sorry! Keep an eye out for the next Backyard."}
+          body={
+            [edition.calledOffNote, opensLater].filter(Boolean).join(" ") ||
+            "Sorry! Keep an eye out for the next Backyard."
+          }
           action={instead}
         />
       );
     case "upcoming":
       return (
         <Notice
-          title={`Sign-ups for ${date} open ${formatMoment(edition.registrationOpensAt!)}`}
+          title={`sign-ups open ${formatMoment(edition.registrationOpensAt!)}`}
           body={`Sign-ups for ${eventDateLong(edition)} aren’t open yet. Come back then!`}
           action={instead}
+          card={edition}
         />
       );
     default:
       return (
         <Notice
-          title={`Registration for ${date} has closed`}
+          title="registration has closed"
           body={
             instead
-              ? "Thanks for the love! The next one is open already."
-              : (opensLater ?? "Thanks for the love! Keep an eye out for the next Backyard.")
+              ? `Sign-ups for ${eventDateLong(edition)} have closed, but the next one is open already.`
+              : `Sign-ups for ${eventDateLong(edition)} have closed. ${opensLater ?? "Thanks for the love! Keep an eye out for the next Backyard."}`
           }
           action={instead}
+          card={edition}
         />
       );
   }
@@ -325,16 +339,25 @@ function Notice({
   title,
   body,
   action,
+  card,
 }: {
   title: string;
   body: string;
   action?: { href: string; label: string } | null;
+  /** The date the message is about. */
+  card?: Edition | null;
 }) {
   return (
-    <div className="py-10 text-center">
-      <Starburst variant={1} color="var(--color-orange)" className="mx-auto w-20" scribble={false} />
-      <h2 className="mt-6 font-heading text-3xl text-forest">{title}</h2>
-      <p className="mx-auto mt-3 max-w-sm text-lg text-muted">{body}</p>
+    <div className={SCREEN}>
+      <Backdrop />
+      <Link href="/" className="font-display text-3xl text-forest" aria-label="Backyard home">
+        BACKYARD
+      </Link>
+      <h1 className="mt-6 max-w-2xl font-brush text-[clamp(3rem,11vw,5.5rem)] leading-[0.9] text-forest">
+        {title}
+      </h1>
+      <p className="mx-auto mt-4 max-w-md text-lg text-muted">{body}</p>
+      {card && <EditionCard edition={card} />}
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         {action && (
           <Link href={action.href} className="btn btn-primary">
@@ -345,47 +368,6 @@ function Notice({
           Back to home
         </Link>
       </div>
-    </div>
-  );
-}
-
-function StatusPill({ availability }: { availability: Exclude<Availability, { state: "closed" }> }) {
-  if (availability.state === "waitlist") {
-    return (
-      <span className="rounded-full bg-mustard px-3 py-1 text-sm font-bold text-forest-deep">
-        Waitlist open
-      </span>
-    );
-  }
-  const few = availability.spotsLeft !== null && availability.spotsLeft <= 20;
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-sm font-bold ${few ? "bg-red text-card" : "bg-lime text-forest-deep"}`}
-    >
-      {availability.spotsLeft === null
-        ? "Registration open"
-        : few
-          ? `Only ${availability.spotsLeft} ${availability.spotsLeft === 1 ? "spot" : "spots"} left`
-          : "Registration open"}
-    </span>
-  );
-}
-
-function CardSkeleton() {
-  return <div className="mt-8 h-40 animate-pulse rounded-2xl bg-forest/10" aria-hidden="true" />;
-}
-
-function FormSkeleton() {
-  return (
-    <div aria-busy="true" aria-label="Loading form" className="animate-pulse space-y-6">
-      <div className="h-9 w-56 rounded-lg bg-forest/10" />
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="space-y-2">
-          <div className="h-4 w-32 rounded bg-forest/10" />
-          <div className="h-12 rounded-xl bg-forest/10" />
-        </div>
-      ))}
-      <div className="h-14 rounded-full bg-forest/15" />
     </div>
   );
 }

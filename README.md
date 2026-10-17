@@ -7,9 +7,12 @@ happens every month. Each month is an **edition** (a "date" in the dashboard)
 with its own date, venue, capacity, poster and guest list.
 
 - **`/`**: landing page with the next date, the "Why Backyard" story, FAQ
-- **`/register`**: free registration with guests, dietary needs and a waitlist
-  when full, for whichever date is taking sign-ups (`?edition=<slug>` for a
-  specific one)
+- **`/register`**: free registration on a page of its own, one question per screen:
+  name, residency, sex, race, date of birth, occupation (and school, for students),
+  dietary needs, email, mobile (confirmed with a texted code when Twilio is set up)
+  and the PDPA question, for whichever date is taking sign-ups (`?edition=<slug>`
+  for a specific one). Unfinished answers are kept in the browser, per date, so
+  people can pick up where they left off. A waitlist opens when it's full
 - **`/pass/<token>`**: each guest's pass for their own date, with their check-in
   code, calendar links and a "release my spot" button. The link carries an
   unguessable token; the short check-in code is only for the check-in table
@@ -42,8 +45,9 @@ or redeploys:
 
 | What | Where |
 | --- | --- |
-| Date, time, venue, capacity, friends per person, sign-up window, poster, note for guests | `/admin/editions` |
+| Date, time, venue, capacity, sign-up window, poster, note for guests | `/admin/editions` |
 | Name, tagline, organiser, contact | `content/series.ts` |
+| Answer options: residency, race, occupations, schools | `content/registration-options.ts` |
 | "Why Backyard", "Why BBQs", "Our model", FAQ, brand line | `content/copy.ts` |
 | Brand colours and fonts | `app/globals.css` (`@theme`) and `app/layout.tsx` |
 | Link preview image | `app/opengraph-image.jpg` (1200×630) |
@@ -71,7 +75,8 @@ automatically on first use.
    `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (each `openssl rand -base64 32`; the
    last keeps forms that were open during a redeploy working); optionally
    confirmation email (`GMAIL_USER` + `GMAIL_APP_PASSWORD`, or `RESEND_API_KEY`,
-   plus `EMAIL_FROM`). See `.env.example`.
+   plus `EMAIL_FROM`) and mobile verification (`TWILIO_ACCOUNT_SID`,
+   `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`). See `.env.example`.
    Put the functions in the same region as the database (Project Settings →
    Functions → Region, e.g. `sin1` for a Singapore database).
 4. Deploy. On Vercel the app refuses to fall back to the local file store, so a
@@ -81,6 +86,9 @@ automatically on first use.
 
 ## How registration works
 
+- Everyone registers for themselves. The questions and their options come from
+  the Registration Questions sheet; students are asked for their school from the
+  list for their occupation (secondary, ITE, JC, poly or university).
 - One registration per email per date. Re-submitting with the same email and
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.
@@ -88,7 +96,13 @@ automatically on first use.
   closing times, checked when the form is submitted. Each form names its date,
   so a form left open past closing time is turned away instead of being moved
   to the next date.
-- Capacity counts people (registrant + guests). Once it's reached, new sign-ups
+- With Twilio Verify set up, the mobile number is confirmed with a texted code
+  before the registration goes through, and the dashboard marks it verified.
+  Without it, numbers are only checked for format. In the Twilio console, limit
+  Verify's SMS geo permissions to the countries you expect, to keep the cost of
+  bogus sign-ups down.
+- Capacity counts people (registrants, plus friends added on earlier sign-ups,
+  when the form still offered that). Once it's reached, new sign-ups
   join the waitlist, and while anyone is waiting, freed spots stay with the
   waitlist instead of going to newcomers. In Postgres, sign-ups are serialised
   with an advisory lock, so two people can't both take the last spot.
@@ -98,8 +112,8 @@ automatically on first use.
   (which emails them, if email is set up), cancel, restore or permanently
   delete (for personal-data requests) from `/admin`. Once a date is over or
   called off, guests can't release their spot and nobody can be given one.
-- The tables are created on first use with row-level security enabled and no
-  policies, so on Supabase they aren't readable through the REST API; the app
-  connects as the table owner.
+- The tables are created on first use (and new columns added to existing ones)
+  with row-level security enabled and no policies, so on Supabase they aren't
+  readable through the REST API; the app connects as the table owner.
 - If email is configured (Gmail or Resend), a confirmation email with the pass
   link and the date in the subject goes out after each sign-up.

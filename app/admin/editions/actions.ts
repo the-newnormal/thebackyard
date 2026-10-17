@@ -30,7 +30,6 @@ const FIELDS = [
   "opensAt",
   "closesAt",
   "capacity",
-  "maxGuests",
   "venueName",
   "venueLevel",
   "venueAddress",

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ConfirmButton, SubmitButton } from "@/components/confirm-button";
 import { formatTimestamp } from "@/lib/format";
+import { ageOnDay } from "@/lib/registrations/demographics";
 import { normalizePhone } from "@/lib/registrations/phone";
 import {
   DIETARY_OPTIONS,
@@ -38,10 +39,13 @@ function matches(r: Registration, filter: Filter): boolean {
 export function RegistrationList({
   registrations,
   allowPromote,
+  eventDay,
 }: {
   registrations: Registration[];
   /** False once the date is over or called off. */
   allowPromote: boolean;
+  /** The date's day (YYYY-MM-DD), for ages on the day. */
+  eventDay: string;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("active");
@@ -57,6 +61,7 @@ export function RegistrationList({
         (!q ||
           r.name.toLowerCase().includes(q) ||
           r.email.includes(q) ||
+          r.school?.toLowerCase().includes(q) ||
           (phoneQuery !== "" && normalizePhone(r.phone).includes(phoneQuery)) ||
           r.code.toLowerCase().includes(q)),
     );
@@ -69,7 +74,7 @@ export function RegistrationList({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search name, email, phone or code"
+          placeholder="Search name, email, phone, school or code"
           aria-label="Search registrations"
           className="field md:max-w-sm"
         />
@@ -102,15 +107,32 @@ export function RegistrationList({
           </li>
         )}
         {visible.map((r) => (
-          <Row key={r.code} registration={r} allowPromote={allowPromote} />
+          <Row key={r.code} registration={r} allowPromote={allowPromote} eventDay={eventDay} />
         ))}
       </ul>
     </section>
   );
 }
 
-function Row({ registration: r, allowPromote }: { registration: Registration; allowPromote: boolean }) {
+function Row({
+  registration: r,
+  allowPromote,
+  eventDay,
+}: {
+  registration: Registration;
+  allowPromote: boolean;
+  eventDay: string;
+}) {
   const checkedIn = Boolean(r.checkedInAt);
+  const age = ageOnDay(r, eventDay);
+  const about = [
+    r.residentStatus,
+    r.sex,
+    r.race,
+    age === null ? null : `${age} on the day`,
+    r.occupation,
+    r.school,
+  ].filter(Boolean);
   return (
     <li className={`grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-center ${r.status === "cancelled" ? "opacity-60" : ""}`}>
       <div className="min-w-0">
@@ -129,11 +151,22 @@ function Row({ registration: r, allowPromote }: { registration: Registration; al
           <a href={`tel:${r.phone}`} className="hover:text-forest hover:underline">
             {r.phone}
           </a>
+          {r.phoneVerified && (
+            <span className="text-forest" title="Confirmed with a texted code">
+              {" "}
+              ✓ verified
+            </span>
+          )}
           {" · "}registered {formatTimestamp(r.createdAt)}
         </p>
+        {about.length > 0 && <p className="mt-1 text-sm text-ink">{about.join(" · ")}</p>}
         <p className="mt-1 text-sm">
-          <strong>Party of {partySize(r)}</strong>
-          {" · "}
+          {r.guests > 0 && (
+            <>
+              <strong>Party of {partySize(r)}</strong>
+              {" · "}
+            </>
+          )}
           {dietaryLabel[r.dietary] ?? r.dietary}
           {r.dietaryNotes && <span className="text-red"> · “{r.dietaryNotes}”</span>}
           {r.heardFrom && <span className="text-muted"> · via {heardLabel[r.heardFrom]}</span>}

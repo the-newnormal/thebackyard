@@ -33,7 +33,6 @@ export const FIRST_EDITION_SEED = {
   registrationOpensAt: null,
   registrationClosesAt: "2026-10-30T18:30:00+08:00",
   capacity: 80,
-  maxGuests: 3,
   venue: {
     name: "*SCAPE Plaza",
     level: "Level 1",
