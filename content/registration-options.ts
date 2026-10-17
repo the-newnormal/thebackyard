@@ -270,8 +270,9 @@ export type Occupation = (typeof OCCUPATIONS)[number];
 
 export const RACES: readonly string[] = [...MAIN_RACES, ...MORE_RACES];
 
-// School lists. Secondary, pre-university and university students can also
-// pick a private institution, or “Others” if theirs isn’t listed.
+// Schools, by kind. Students pick from all of them in one list, so a JC
+// student at a private institution or a poly student at a university both
+// find theirs, with “Others” at the end if it isn’t listed.
 
 const SECONDARY_SCHOOLS = [
   "Admiralty Secondary School",
@@ -796,21 +797,31 @@ const PRIVATE_INSTITUTIONS = [
 
 const NOT_LISTED = "Others";
 
-/** A-Z, ignoring case, with "Others" kept at the end. */
-const alphabetical = (list: readonly string[], others: boolean) => [
-  ...[...list].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base", numeric: true })),
-  ...(others ? [NOT_LISTED] : []),
+/** Every school once, A-Z ignoring case (as the sheet asks), with "Others" last. */
+export const SCHOOLS: readonly string[] = [
+  ...[
+    ...new Set([
+      ...SECONDARY_SCHOOLS,
+      ...PRE_UNIVERSITY,
+      ...ITE_COLLEGES,
+      ...POLYTECHNICS,
+      ...UNIVERSITIES,
+      ...PRIVATE_INSTITUTIONS,
+    ]),
+  ].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base", numeric: true })),
+  NOT_LISTED,
 ];
 
-/** Occupations that are asked which school they go to, and the choices for each. */
-export const SCHOOLS_BY_OCCUPATION: Partial<Record<Occupation, readonly string[]>> = {
-  "Secondary Student": alphabetical([...SECONDARY_SCHOOLS, ...PRIVATE_INSTITUTIONS], true),
-  "ITE Student": alphabetical(ITE_COLLEGES, false),
-  "JC Student": alphabetical([...PRE_UNIVERSITY, ...PRIVATE_INSTITUTIONS], true),
-  "Poly Student": alphabetical(POLYTECHNICS, false),
-  "University Student": alphabetical([...UNIVERSITIES, ...PRIVATE_INSTITUTIONS], true),
-};
+/** The occupations asked which school they go to. */
+const STUDENTS: readonly Occupation[] = [
+  "Secondary Student",
+  "ITE Student",
+  "JC Student",
+  "Poly Student",
+  "University Student",
+];
 
+/** The school choices for this occupation, or null if it isn't asked. */
 export function schoolsFor(occupation: string): readonly string[] | null {
-  return SCHOOLS_BY_OCCUPATION[occupation as Occupation] ?? null;
+  return STUDENTS.includes(occupation as Occupation) ? SCHOOLS : null;
 }

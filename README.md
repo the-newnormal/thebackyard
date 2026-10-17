@@ -67,8 +67,8 @@ table is created automatically on first use.
 ## How registration works
 
 - Everyone registers for themselves. The questions and their options come from
-  the Registration Questions sheet; students are asked for their school from the
-  list for their occupation (secondary, ITE, JC, poly or university).
+  the Registration Questions sheet; students (secondary, ITE, JC, poly or
+  university) pick their school from one A-Z list of every school.
 - One registration per email per event. Re-submitting with the same email and
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.

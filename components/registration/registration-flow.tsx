@@ -189,7 +189,7 @@ function asideFor(step: StepKey, values: Values, verifyPhone: boolean): string |
     case "occupation":
       return "pick the closest one";
     case "school":
-      return (schoolsFor(values.occupation)?.length ?? 0) > 8 ? "start typing to find it" : undefined;
+      return "start typing to find it";
     case "dietary":
       return "we’ll make sure there’s something good on the grill for you";
     case "email":
@@ -694,17 +694,6 @@ export function RegistrationFlow({
 
       case "school": {
         const schools = schoolsFor(values.occupation) ?? [];
-        if (schools.length <= 8) {
-          return (
-            <TapStep
-            {...tapProps}
-              question="which school do you go to?"
-              options={schools}
-              value={values.school}
-              onPick={(v) => pick({ school: v })}
-            />
-          );
-        }
         return (
           <div>
             <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
