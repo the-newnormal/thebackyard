@@ -100,10 +100,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     prepare: false,
   });
 
-  const migrate = async () => {
-    // Already up to date? Skip the DDL (and its table lock) on every cold start.
-    // `current` checks for the newest column; bump it when adding another.
-    const [existing] = await sql<{ rls: boolean; current: boolean }[]>`
+  // `current` checks for the newest column; bump it when adding another.
+  const upToDate = async (q: postgres.ISql) => {
+    const [existing] = await q<{ rls: boolean; current: boolean }[]>`
       select
         c.relrowsecurity as rls,
         exists (
@@ -112,10 +111,19 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         ) as current
       from pg_class c where c.oid = to_regclass('registrations')
     `;
-    if (existing?.rls && existing.current) return;
+    return Boolean(existing?.rls && existing.current);
+  };
+
+  const migrate = async () => {
+    // Already up to date? Skip the DDL (and its table lock) on every cold start.
+    if (await upToDate(sql)) return;
     await sql.begin(async (tx) => {
       // Concurrent cold starts would otherwise race on CREATE … IF NOT EXISTS.
       await tx`select pg_advisory_xact_lock(hashtext('backyard:migrate'))`;
+      // Another instance may have finished it while we waited.
+      if (await upToDate(tx)) return;
+      // "Already exists, skipping" notices are expected here.
+      await tx`set local client_min_messages = warning`;
       await tx`
         create table if not exists registrations (
           id bigserial primary key,

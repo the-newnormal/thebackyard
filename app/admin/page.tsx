@@ -158,9 +158,7 @@ async function Dashboard() {
         <Breakdown
           title="Dietary (confirmed people)"
           rows={dietary}
-          footnote={`Each party picks one option for everyone; ${
-            confirmed.filter((r) => r.dietaryNotes).length
-          } parties added notes, so check those in the list.`}
+          footnote={dietaryFootnote(confirmed)}
         />
         <Breakdown title="Occupation" rows={tally(OCCUPATIONS, (r) => r.occupation)} />
         <Breakdown
@@ -190,6 +188,14 @@ async function Dashboard() {
       <RegistrationList registrations={registrations} />
     </>
   );
+}
+
+function dietaryFootnote(confirmed: Registration[]): string {
+  const notes = confirmed.filter((r) => r.dietaryNotes).length;
+  const parties = confirmed.some((r) => r.guests > 0)
+    ? " Earlier sign-ups with friends picked one option for their whole party."
+    : "";
+  return `${notes} ${notes === 1 ? "person" : "people"} added notes, so check those in the list.${parties}`;
 }
 
 function Stat({
@@ -228,9 +234,7 @@ function Breakdown({
       <ul className="mt-3 space-y-2">
         {rows.map((row) => (
           <li key={row.label} className="grid grid-cols-[10.5rem_1fr_2.5rem] items-center gap-3 text-sm">
-            <span className="truncate text-ink" title={row.label}>
-              {row.label}
-            </span>
+            <span className="leading-snug text-ink [overflow-wrap:anywhere]">{row.label}</span>
             <span className="h-2.5 overflow-hidden rounded-full bg-forest/10">
               <span
                 className="block h-full rounded-full bg-orange"

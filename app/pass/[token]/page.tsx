@@ -97,7 +97,7 @@ function Ticket({ registration }: { registration: Registration }) {
 
       <div className="px-6 pt-8 pb-6 text-center sm:px-10">
         <h1
-          className={`font-brush text-5xl leading-none sm:text-6xl ${status === "cancelled" ? "text-muted" : "text-forest"}`}
+          className={`font-brush text-5xl leading-none [overflow-wrap:anywhere] sm:text-6xl ${status === "cancelled" ? "text-muted" : "text-forest"}`}
         >
           {headline}
         </h1>
@@ -206,7 +206,7 @@ function Item({
   return (
     <div className={className}>
       <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">{label}</dt>
-      <dd className="mt-1 leading-snug font-semibold text-ink">{children}</dd>
+      <dd className="mt-1 leading-snug font-semibold text-ink [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }

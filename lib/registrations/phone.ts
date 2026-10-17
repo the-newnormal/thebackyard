@@ -11,8 +11,17 @@ export function normalizePhone(input: string): string {
  */
 export const PHONE_PATTERN = /^(\+(?!65)\d{8,15}|[3689]\d{7})$/;
 
-/** Joins a country code and a number typed the local way, e.g. "+60" + "012-345 6789". */
-export function composePhone(dialCode: string, local: string): string {
+/** Normalised SG numbers are the 8 digits alone. */
+export const isSingaporeNumber = (normalized: string) => /^\d{8}$/.test(normalized);
+
+/** Joins a country code and the number as typed, e.g. "+60" + "012-345 6789". */
+export function composePhone(dialCode: string, typed: string): string {
+  const digits = typed.replace(/\D/g, "");
+  // A whole international number typed or pasted in stands on its own.
+  if (typed.trim().startsWith("+")) return `+${digits}`;
+  if (digits.startsWith("00")) return `+${digits.slice(2)}`;
+  // SG's code typed again in front of the 8 digits, e.g. "65 9123 4567".
+  if (dialCode === "+65" && /^65\d{8}$/.test(digits)) return `+${digits}`;
   // Drop the trunk 0 people dial at home; it isn't part of the international number.
-  return `${dialCode}${local.replace(/\D/g, "").replace(/^0+/, "")}`;
+  return `${dialCode}${digits.replace(/^0+/, "")}`;
 }

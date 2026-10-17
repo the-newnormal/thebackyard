@@ -141,7 +141,7 @@ function Welcome({ availability }: { availability?: OpenAvailability }) {
 function StatusPill({ availability }: { availability: OpenAvailability }) {
   if (availability.state === "waitlist") {
     return (
-      <span className="mt-5 rounded-full bg-mustard px-3 py-1 text-sm font-bold text-forest-deep">
+      <span className="mt-7 rounded-full bg-mustard px-3 py-1 text-sm font-bold text-forest-deep">
         Waitlist open
       </span>
     );
@@ -149,7 +149,7 @@ function StatusPill({ availability }: { availability: OpenAvailability }) {
   const few = availability.spotsLeft !== null && availability.spotsLeft <= 20;
   return (
     <span
-      className={`mt-5 rounded-full px-3 py-1 text-sm font-bold ${few ? "bg-red text-card" : "bg-lime text-forest-deep"}`}
+      className={`mt-7 rounded-full px-3 py-1 text-sm font-bold ${few ? "bg-red text-card" : "bg-lime text-forest-deep"}`}
     >
       {few
         ? `Only ${availability.spotsLeft} ${availability.spotsLeft === 1 ? "spot" : "spots"} left`

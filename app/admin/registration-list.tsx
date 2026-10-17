@@ -141,7 +141,15 @@ function Row({ registration: r }: { registration: Registration }) {
           )}
           {" · "}registered {formatTimestamp(r.createdAt)}
         </p>
-        {about.length > 0 && <p className="mt-1 text-sm text-ink">{about.join(" · ")}</p>}
+        {/* Folded away so the check-in table shows only what it needs. */}
+        {about.length > 0 && (
+          <details className="mt-1 text-sm">
+            <summary className="w-fit cursor-pointer font-semibold text-muted hover:text-forest">
+              About
+            </summary>
+            <p className="mt-1 text-ink">{about.join(" · ")}</p>
+          </details>
+        )}
         <p className="mt-1 text-sm">
           {r.guests > 0 && (
             <>
