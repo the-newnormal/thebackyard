@@ -2,6 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
+import {
+  MAIN_RACES,
+  OCCUPATIONS,
+  RESIDENT_STATUSES,
+  SEXES,
+} from "@/content/registration-options";
 import { requireAdmin } from "@/lib/admin-auth";
 import { adminFocus, editionState, isRegistrationOpen } from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
@@ -10,11 +16,11 @@ import { eventDateLong, eventDateShort, eventTimeRange, formatMoment } from "@/l
 import {
   DIETARY_OPTIONS,
   getStore,
-  HEARD_FROM_OPTIONS,
   partySize,
   StoreNotConfiguredError,
   type Registration,
 } from "@/lib/registrations";
+import { AGE_GROUPS, ageGroup, ageOnDay, editionDay } from "@/lib/registrations/demographics";
 import { AdminHeader } from "./admin-header";
 import { EditionBadge } from "./edition-badge";
 import { setRegistrationWindow } from "./editions/actions";
@@ -81,19 +87,35 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
   const { capacity } = edition;
   // Giving a spot emails a confirmation; pointless once it's over or called off.
   const allowPromote = state !== "past" && state !== "cancelled";
+  const day = editionDay(edition);
 
   // Food prep is for people who are actually coming.
   const dietary = DIETARY_OPTIONS.map((o) => ({
     label: o.label,
     value: people(confirmed.filter((r) => r.dietary === o.value)),
   }));
-  const heardFrom = [
-    ...HEARD_FROM_OPTIONS.map((o) => ({
-      label: o.label,
-      value: active.filter((r) => r.heardFrom === o.value).length,
-    })),
-    { label: "Didn’t say", value: active.filter((r) => !r.heardFrom).length },
-  ];
+
+  // Who's signed up, one count per registration. Sign-ups from before these
+  // questions were asked show as "Not asked".
+  const tally = (labels: readonly string[], answer: (r: Registration) => string | null) => {
+    const rows = labels.map((label) => ({
+      label,
+      value: active.filter((r) => answer(r) === label).length,
+    }));
+    const notAsked = active.filter((r) => answer(r) === null).length;
+    return notAsked ? [...rows, { label: "Not asked", value: notAsked }] : rows;
+  };
+  const mainRaces: readonly string[] = MAIN_RACES;
+  const age = (r: Registration) => {
+    const years = ageOnDay(r, day);
+    return years === null ? null : ageGroup(years);
+  };
+  const bySchool = new Map<string, number>();
+  for (const r of active) if (r.school) bySchool.set(r.school, (bySchool.get(r.school) ?? 0) + 1);
+  const schools = [...bySchool]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
 
   return (
     <>
@@ -175,14 +197,34 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         <Breakdown
           title="Dietary (confirmed people)"
           rows={dietary}
-          footnote={`Each party picks one option for everyone; ${
-            confirmed.filter((r) => r.dietaryNotes).length
-          } parties added notes, so check those in the list.`}
+          footnote={dietaryFootnote(confirmed)}
         />
-        <Breakdown title="Heard about us via" rows={heardFrom} />
+        <Breakdown title="Occupation" rows={tally(OCCUPATIONS, (r) => r.occupation)} />
+        <Breakdown
+          title="Age on the day"
+          rows={tally(
+            AGE_GROUPS.map((g) => g.label),
+            age,
+          )}
+        />
+        <Breakdown
+          title="Residency"
+          rows={tally(RESIDENT_STATUSES, (r) => r.residentStatus)}
+        />
+        <Breakdown title="Sex" rows={tally(SEXES, (r) => r.sex)} />
+        <Breakdown
+          title="Race"
+          rows={tally(MAIN_RACES, (r) =>
+            r.race && !mainRaces.includes(r.race) ? "Others" : r.race,
+          )}
+          footnote="Others includes everyone who picked a more specific race."
+        />
+        {schools.length > 0 && (
+          <Breakdown title="Top schools" rows={schools} footnote="Students only." />
+        )}
       </div>
 
-      <RegistrationList registrations={registrations} allowPromote={allowPromote} />
+      <RegistrationList registrations={registrations} allowPromote={allowPromote} eventDay={day} />
     </>
   );
 }
@@ -256,6 +298,14 @@ function WindowButton({ edition, now }: { edition: Edition; now: Date }) {
   );
 }
 
+function dietaryFootnote(confirmed: Registration[]): string {
+  const notes = confirmed.filter((r) => r.dietaryNotes).length;
+  const parties = confirmed.some((r) => r.guests > 0)
+    ? " Earlier sign-ups with friends picked one option for their whole party."
+    : "";
+  return `${notes} ${notes === 1 ? "person" : "people"} added notes, so check those in the list.${parties}`;
+}
+
 function Stat({
   label,
   value,
@@ -291,8 +341,8 @@ function Breakdown({
       <h2 className="font-bold text-forest">{title}</h2>
       <ul className="mt-3 space-y-2">
         {rows.map((row) => (
-          <li key={row.label} className="grid grid-cols-[8.5rem_1fr_2.5rem] items-center gap-3 text-sm">
-            <span className="truncate text-ink">{row.label}</span>
+          <li key={row.label} className="grid grid-cols-[10.5rem_1fr_2.5rem] items-center gap-3 text-sm">
+            <span className="leading-snug text-ink [overflow-wrap:anywhere]">{row.label}</span>
             <span className="h-2.5 overflow-hidden rounded-full bg-forest/10">
               <span
                 className="block h-full rounded-full bg-orange"

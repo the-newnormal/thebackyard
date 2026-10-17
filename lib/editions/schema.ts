@@ -41,11 +41,6 @@ export const editionFormSchema = z
           .max(1000, "That’s a lot of people — 1000 at most")
           .nullable(),
       ),
-    maxGuests: z.coerce
-      .number("Use a whole number")
-      .int("Use a whole number")
-      .min(0, "0 means no friends")
-      .max(10, "10 friends at most"),
     venueName: text(120, "The venue name").pipe(z.string().min(1, "Where is it?")),
     venueLevel: optional(60, "The level"),
     venueAddress: text(200, "The address").pipe(z.string().min(1, "Add the address")),
@@ -76,7 +71,6 @@ export const editionFormSchema = z
       registrationOpensAt,
       registrationClosesAt,
       capacity: v.capacity,
-      maxGuests: v.maxGuests,
       venue: {
         name: v.venueName,
         level: v.venueLevel,

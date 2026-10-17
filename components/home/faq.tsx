@@ -54,8 +54,7 @@ function ContactAnswer({ email, instagram }: { email: string; instagram: string 
   );
 }
 
-/** `soloOnly`: the next date allows no friends, so answers that mention them change. */
-export function Faq({ soloOnly = false }: { soloOnly?: boolean }) {
+export function Faq() {
   const { email, instagram } = series.contact;
   return (
     <section id="faq" className="mx-auto max-w-3xl px-4 py-24 sm:px-6 sm:py-32">
@@ -63,7 +62,7 @@ export function Faq({ soloOnly = false }: { soloOnly?: boolean }) {
       <div className="mt-10 divide-y-2 divide-dashed divide-forest/20 border-y-2 border-dashed border-forest/20">
         {faqs.map((faq) => (
           <FaqItem key={faq.q} q={faq.q}>
-            {soloOnly && "aSolo" in faq ? faq.aSolo : faq.a}
+            {faq.a}
           </FaqItem>
         ))}
         {(email || instagram) && (

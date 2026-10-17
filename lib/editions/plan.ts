@@ -92,7 +92,6 @@ export interface EditionFormValues {
   opensAt: string;
   closesAt: string;
   capacity: string;
-  maxGuests: string;
   venueName: string;
   venueLevel: string;
   venueAddress: string;
@@ -110,7 +109,6 @@ export function toFormValues(edition: Edition): EditionFormValues {
     opensAt: edition.registrationOpensAt ? sgtLocal(edition.registrationOpensAt) : "",
     closesAt: sgtLocal(edition.registrationClosesAt),
     capacity: edition.capacity === null ? "" : String(edition.capacity),
-    maxGuests: String(edition.maxGuests),
     venueName: edition.venue.name,
     venueLevel: edition.venue.level ?? "",
     venueAddress: edition.venue.address,

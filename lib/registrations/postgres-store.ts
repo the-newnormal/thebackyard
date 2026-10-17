@@ -21,6 +21,13 @@ type Row = {
   name: string;
   email: string;
   phone: string;
+  phone_verified: boolean;
+  resident_status: string | null;
+  sex: string | null;
+  race: string | null;
+  birthdate: Date | null;
+  occupation: string | null;
+  school: string | null;
   guests: number;
   dietary: Registration["dietary"];
   dietary_notes: string | null;
@@ -38,6 +45,14 @@ const toRegistration = (row: Row): Registration => ({
   name: row.name,
   email: row.email,
   phone: row.phone,
+  phoneVerified: row.phone_verified,
+  residentStatus: row.resident_status,
+  sex: row.sex,
+  race: row.race,
+  // Dates arrive as UTC midnight.
+  birthdate: row.birthdate?.toISOString().slice(0, 10) ?? null,
+  occupation: row.occupation,
+  school: row.school,
   guests: row.guests,
   dietary: row.dietary,
   dietaryNotes: row.dietary_notes,
@@ -56,7 +71,6 @@ type EditionRow = {
   registration_opens_at: Date | null;
   registration_closes_at: Date;
   capacity: number | null;
-  max_guests: number;
   venue_name: string;
   venue_level: string | null;
   venue_address: string;
@@ -79,7 +93,6 @@ const toEdition = (row: EditionRow): Edition => ({
   registrationOpensAt: row.registration_opens_at?.toISOString() ?? null,
   registrationClosesAt: row.registration_closes_at.toISOString(),
   capacity: row.capacity,
-  maxGuests: row.max_guests,
   venue: {
     name: row.venue_name,
     level: row.venue_level,
@@ -115,7 +128,6 @@ function editionColumns(fields: Partial<EditionFields>): EditionColumns {
     columns.registration_closes_at = date(fields.registrationClosesAt);
   }
   if (fields.capacity !== undefined) columns.capacity = fields.capacity;
-  if (fields.maxGuests !== undefined) columns.max_guests = fields.maxGuests;
   if (fields.venue !== undefined) {
     columns.venue_name = fields.venue.name;
     columns.venue_level = fields.venue.level;
@@ -184,22 +196,31 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     onnotice: () => {},
   });
 
-  const migrate = async () => {
-    // Already set up? Skip the DDL (and its table locks) on every cold start.
-    // Checks for the newest table and column; update it when adding one.
-    const [existing] = await sql<{ rls: boolean | null; posters: boolean; latest: boolean }[]>`
+  // Checks for the newest table and columns; update it when adding one.
+  const upToDate = async (q: postgres.ISql) => {
+    const [existing] = await q<{ rls: boolean | null; posters: boolean; latest: boolean }[]>`
       select
         (select relrowsecurity from pg_class where oid = to_regclass('registrations')) as rls,
         to_regclass('posters') is not null as posters,
         exists (
           select 1 from pg_attribute
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
+        ) and exists (
+          select 1 from pg_attribute
+          where attrelid = to_regclass('registrations') and attname = 'school' and not attisdropped
         ) as latest
     `;
-    if (existing?.rls && existing.posters && existing.latest) return;
+    return Boolean(existing?.rls && existing.posters && existing.latest);
+  };
+
+  const migrate = async () => {
+    // Already up to date? Skip the DDL (and its table locks) on every cold start.
+    if (await upToDate(sql)) return;
     await sql.begin(async (tx) => {
       // Concurrent cold starts would otherwise race on CREATE … IF NOT EXISTS.
       await tx`select pg_advisory_xact_lock(hashtext('backyard:migrate'))`;
+      // Another instance may have finished it while we waited.
+      if (await upToDate(tx)) return;
       await tx`
         create table if not exists registrations (
           id bigserial primary key,
@@ -209,6 +230,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           name text not null,
           email text not null,
           phone text not null,
+          phone_verified boolean not null default false,
+          resident_status text,
+          sex text,
+          race text,
+          birthdate date,
+          occupation text,
+          school text,
           guests integer not null default 0,
           dietary text not null,
           dietary_notes text,
@@ -218,6 +246,17 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           checked_in_at timestamptz,
           created_at timestamptz not null default now()
         )
+      `;
+      // Columns added since launch, for tables created before them.
+      await tx`
+        alter table registrations
+          add column if not exists phone_verified boolean not null default false,
+          add column if not exists resident_status text,
+          add column if not exists sex text,
+          add column if not exists race text,
+          add column if not exists birthdate date,
+          add column if not exists occupation text,
+          add column if not exists school text
       `;
       await tx`
         create unique index if not exists registrations_event_email
@@ -238,6 +277,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           registration_opens_at timestamptz,
           registration_closes_at timestamptz not null,
           capacity integer check (capacity is null or capacity between 1 and 1000),
+          -- Unused since everyone registers for themselves; kept for older deployments.
           max_guests integer not null default 3 check (max_guests between 0 and 10),
           venue_name text not null,
           venue_level text,
@@ -333,6 +373,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           name: input.name,
           email: input.email,
           phone: input.phone,
+          phone_verified: input.phoneVerified,
+          resident_status: input.residentStatus,
+          sex: input.sex,
+          race: input.race,
+          birthdate: input.birthdate,
+          occupation: input.occupation,
+          school: input.school,
           guests: input.guests,
           dietary: input.dietary,
           dietary_notes: input.dietaryNotes,

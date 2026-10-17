@@ -47,7 +47,19 @@ async function writeJson(file: string, value: unknown) {
   await rename(tmp, file);
 }
 
-const load = () => readJson<Registration[]>(FILE, () => []);
+// Fields added since launch, for rows saved before them.
+const LATER_FIELDS = {
+  phoneVerified: false,
+  residentStatus: null,
+  sex: null,
+  race: null,
+  birthdate: null,
+  occupation: null,
+  school: null,
+} satisfies Partial<Registration>;
+
+const load = async () =>
+  (await readJson<Registration[]>(FILE, () => [])).map((row) => ({ ...LATER_FIELDS, ...row }));
 const save = (rows: Registration[]) => writeJson(FILE, rows);
 
 /** Same starting point as a new Postgres database: the first edition. */

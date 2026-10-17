@@ -236,31 +236,17 @@ function Fields({
             />
           </Field>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Max people" hint="incl. friends; empty: no limit" errors={e.capacity}>
-            <input
-              type="number"
-              name="capacity"
-              min={1}
-              max={1000}
-              inputMode="numeric"
-              className="field"
-              defaultValue={v.capacity}
-            />
-          </Field>
-          <Field label="Friends per person" errors={e.maxGuests}>
-            <input
-              type="number"
-              name="maxGuests"
-              min={0}
-              max={10}
-              required
-              inputMode="numeric"
-              className="field"
-              defaultValue={v.maxGuests}
-            />
-          </Field>
-        </div>
+        <Field label="Max people" hint="empty: no limit" errors={e.capacity}>
+          <input
+            type="number"
+            name="capacity"
+            min={1}
+            max={1000}
+            inputMode="numeric"
+            className="field sm:max-w-48"
+            defaultValue={v.capacity}
+          />
+        </Field>
         <p className="text-sm text-muted">
           Once it’s full, new sign-ups join the waitlist. Lowering the limit keeps everyone
           already confirmed; raising it doesn’t move anyone off the waitlist, so use “Give a

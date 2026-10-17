@@ -14,6 +14,8 @@
   --color-orange-ink: #a5520f;
   --color-vermilion: #d84a27;
   --color-red: #c83d36;
+  /* Darker red for small text such as form errors: brand red is just under 4.5:1 on paper. */
+  --color-red-ink: #a8322c;
   --color-coral: #eb524b;
   --color-rust: #74301f;
   --color-ink: #1d2a20;
@@ -25,6 +27,11 @@
   --font-brush: var(--font-brush-script), "Marker Felt", cursive;
 
   --animate-marquee: marquee 40s linear infinite;
+  /* Registration steps slide in from the side they're coming from. "backwards"
+     leaves no transform behind, which would trap the step's fixed overlays. */
+  --animate-step-forward: step-forward 320ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  --animate-step-back: step-back 320ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  --animate-burst: burst 800ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
 
   @keyframes marquee {
     from {
@@ -32,6 +39,32 @@
     }
     to {
       transform: translateX(-50%);
+    }
+  }
+  @keyframes step-forward {
+    from {
+      opacity: 0;
+      transform: translateX(2.5rem);
+    }
+  }
+  @keyframes step-back {
+    from {
+      opacity: 0;
+      transform: translateX(-2.5rem);
+    }
+  }
+  /* Starbursts popping when registration starts. */
+  @keyframes burst {
+    from {
+      opacity: 1;
+      transform: scale(0.2) rotate(-20deg);
+    }
+    60% {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+      transform: scale(1.4) rotate(10deg);
     }
   }
 }
@@ -79,6 +112,11 @@ body::before {
   outline: 3px solid var(--color-orange);
   outline-offset: 3px;
   border-radius: 6px;
+}
+
+/* Headings focused only so screen readers start there, like each new question. */
+[tabindex="-1"]:focus-visible {
+  outline: none;
 }
 
 @layer components {
@@ -215,6 +253,50 @@ body::before {
   }
   @media (forced-colors: active) {
     .pill input:checked + span {
+      forced-color-adjust: none;
+      background: Highlight;
+      border-color: Highlight;
+      color: HighlightText;
+    }
+  }
+
+  /* Big answer buttons on the registration steps, like oversized pills. */
+  .choice {
+    display: flex;
+    width: 100%;
+    min-height: 3.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 1.1rem;
+    border: 2px solid color-mix(in oklab, var(--color-forest) 35%, transparent);
+    background: var(--color-card);
+    padding: 0.85rem 1.15rem;
+    text-align: left;
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--color-ink);
+    transition:
+      transform 150ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease,
+      box-shadow 150ms ease;
+  }
+  .choice:hover {
+    border-color: var(--color-forest);
+    transform: translateY(-2px);
+  }
+  .choice[aria-pressed="true"],
+  .choice[aria-selected="true"] {
+    background: var(--color-forest);
+    border-color: var(--color-forest);
+    color: var(--color-cream);
+    box-shadow: 4px 4px 0 var(--color-forest-deep);
+  }
+  @media (forced-colors: active) {
+    .choice[aria-pressed="true"],
+    .choice[aria-selected="true"] {
       forced-color-adjust: none;
       background: Highlight;
       border-color: Highlight;

@@ -22,7 +22,7 @@ export default async function Home() {
         <WhyBbq />
         <OurModel />
         <MoreThan />
-        <Faq soloOnly={(schedule.openFor ?? schedule.featured)?.maxGuests === 0} />
+        <Faq />
         <FinalCta schedule={schedule} />
       </main>
       <SiteFooter cta={Boolean(schedule.openFor)} />

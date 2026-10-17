@@ -56,6 +56,11 @@ export const moreThan = {
   body: "We aim to be more than a place to dwell or a means to gather — a hub that pulls people in, just to be. Friendships will form, people will feel welcomed and hosted, and it will grow organically.",
 };
 
+// The PDPA question on the last registration step. People answer Yes or No,
+// and can register either way.
+export const pdpaConsent =
+  "I agree for Backyard and its affiliated parties to send me marketing and communication materials including upcoming youth programmes and events via email, and to improve its planning and delivery of youth programmes and events. I understand that I can unsubscribe at any time.";
+
 export const faqs = [
   {
     q: "Is it really free?",
@@ -63,9 +68,7 @@ export const faqs = [
   },
   {
     q: "Can I bring friends?",
-    a: "Please do. Add them when you register, or send them the link so they can sign up themselves.",
-    // When a date allows no friends on one registration.
-    aSolo: "Please do! This time everyone registers for themselves, so send them the link.",
+    a: "Please do! Send them the link so they can sign up too. Everyone registers for themselves, so we know how much food to prep.",
   },
   {
     q: "I have dietary needs.",
@@ -77,7 +80,7 @@ export const faqs = [
   },
   {
     q: "How often is Backyard?",
-    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram, or tick “keep me posted” when you register, to hear when the next date opens.`,
+    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram, or say yes to “can we keep you posted?” when you register, to hear when the next date opens.`,
   },
   {
     q: "How do I get there?",

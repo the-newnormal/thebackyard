@@ -2,13 +2,25 @@ import type { NextRequest } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
 import { adminFocus } from "@/lib/editions/select";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
+import { ageOnDay, editionDay } from "@/lib/registrations/demographics";
 
-const COLUMNS: [string, (r: Registration) => string | number | boolean | null][] = [
+type Column = [string, (r: Registration) => string | number | boolean | null];
+
+/** `day`: the edition's date, for ages on the day. */
+const columns = (day: string): Column[] => [
   ["code", (r) => r.code],
   ["status", (r) => r.status],
   ["name", (r) => r.name],
   ["email", (r) => r.email],
   ["phone", (r) => r.phone],
+  ["phone_verified", (r) => r.phoneVerified],
+  ["resident_status", (r) => r.residentStatus],
+  ["sex", (r) => r.sex],
+  ["race", (r) => r.race],
+  ["birthdate", (r) => r.birthdate],
+  ["age_on_event_day", (r) => ageOnDay(r, day)],
+  ["occupation", (r) => r.occupation],
+  ["school", (r) => r.school],
   ["party_size", (r) => partySize(r)],
   ["guests", (r) => r.guests],
   ["dietary", (r) => r.dietary],
@@ -39,9 +51,10 @@ export async function GET(request: NextRequest) {
     : adminFocus(editions, new Date());
   if (!edition) return new Response("No such date", { status: 404 });
   const rows = await store.list(edition.slug);
+  const cols = columns(editionDay(edition));
   const csv = [
-    COLUMNS.map(([name]) => name).join(","),
-    ...rows.map((r) => COLUMNS.map(([, get]) => cell(get(r))).join(",")),
+    cols.map(([name]) => name).join(","),
+    ...rows.map((r) => cols.map(([, get]) => cell(get(r))).join(",")),
   ].join("\r\n");
 
   return new Response(`﻿${csv}\r\n`, {

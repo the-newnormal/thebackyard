@@ -33,15 +33,18 @@ export function isEmailConfigured(): boolean {
   return Boolean(gmailAccount() || (process.env.RESEND_API_KEY && process.env.EMAIL_FROM));
 }
 
-/** Confirms a sign-up (or a spot given from the waitlist) for its own edition. */
+/**
+ * Confirms a sign-up (or a spot given from the waitlist) for its own edition.
+ * Resolves to whether the provider took the email; failures are only logged.
+ */
 export async function sendConfirmationEmail(
   registration: Registration,
   edition: Edition,
-): Promise<void> {
+): Promise<boolean> {
   const gmail = gmailAccount();
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM?.trim() || gmail?.user;
-  if (!gmail && !(apiKey && from)) return;
+  if (!gmail && !(apiKey && from)) return false;
 
   const passUrl = `${siteUrl()}/pass/${registration.passToken}`;
   const waitlisted = registration.status === "waitlist";
@@ -106,10 +109,11 @@ export async function sendConfirmationEmail(
       });
       await transport.sendMail(message);
       console.info("Confirmation email sent via Gmail");
+      return true;
     } catch (error) {
       console.error("Confirmation email failed (Gmail)", error);
+      return false;
     }
-    return;
   }
 
   try {
@@ -124,7 +128,9 @@ export async function sendConfirmationEmail(
     if (!response.ok) {
       console.error("Confirmation email failed", response.status, await response.text());
     }
+    return response.ok;
   } catch (error) {
     console.error("Confirmation email failed", error);
+    return false;
   }
 }
