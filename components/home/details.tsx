@@ -81,7 +81,10 @@ export function Details() {
               you are — bring a friend or come solo.
             </Row>
             <Row label="Cost" color="text-vermilion">
-              Free. Just register so we know how much food to prep.
+              Backyard is free for everyone, with no fixed fee and no expectation of payment.
+              We’re a volunteer-run community that keeps going because people pay it forward. If
+              Backyard has meant something to you, a contribution of any size helps keep it open
+              for the next person.
             </Row>
           </dl>
 
