@@ -63,7 +63,7 @@ export const faqs = [
   },
   {
     q: "Can I bring friends?",
-    a: "Please do. Add them when you register, or send them the link so they can sign up themselves.",
+    a: "Please do! Send them the link so they can sign up too. Everyone registers for themselves, so we know how much food to prep.",
   },
   {
     q: "I have dietary needs.",

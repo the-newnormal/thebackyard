@@ -24,12 +24,10 @@ export const event = {
       "https://www.google.com/maps/search/?api=1&query=*SCAPE%2C%202%20Orchard%20Link%2C%20Singapore%20237978",
   },
 
-  // Total headcount (registrants + their guests). Once reached, new sign-ups
-  // join the waitlist. `null` means no cap. EVENT_CAPACITY overrides this.
+  // Total headcount. Everyone registers individually; friends added on
+  // earlier sign-ups count too. Once reached, new sign-ups join the waitlist.
+  // `null` means no cap. EVENT_CAPACITY overrides this.
   capacity: 80 as number | null,
-
-  // How many friends one person can register alongside themselves.
-  maxGuests: 3,
 
   // Registration closes automatically at this time.
   // Set REGISTRATION_OPEN=false to close it early.

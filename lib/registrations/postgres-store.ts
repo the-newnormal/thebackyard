@@ -17,6 +17,13 @@ type Row = {
   name: string;
   email: string;
   phone: string;
+  phone_verified: boolean;
+  resident_status: string | null;
+  sex: string | null;
+  race: string | null;
+  birthdate: Date | null;
+  occupation: string | null;
+  school: string | null;
   guests: number;
   dietary: Registration["dietary"];
   dietary_notes: string | null;
@@ -34,6 +41,14 @@ const toRegistration = (row: Row): Registration => ({
   name: row.name,
   email: row.email,
   phone: row.phone,
+  phoneVerified: row.phone_verified,
+  residentStatus: row.resident_status,
+  sex: row.sex,
+  race: row.race,
+  // Dates arrive as UTC midnight.
+  birthdate: row.birthdate?.toISOString().slice(0, 10) ?? null,
+  occupation: row.occupation,
+  school: row.school,
   guests: row.guests,
   dietary: row.dietary,
   dietaryNotes: row.dietary_notes,
@@ -86,11 +101,18 @@ export function createPostgresStore(connectionString: string): RegistrationStore
   });
 
   const migrate = async () => {
-    // Already set up? Skip the DDL (and its table lock) on every cold start.
-    const [existing] = await sql<{ rls: boolean }[]>`
-      select relrowsecurity as rls from pg_class where oid = to_regclass('registrations')
+    // Already up to date? Skip the DDL (and its table lock) on every cold start.
+    // `current` checks for the newest column; bump it when adding another.
+    const [existing] = await sql<{ rls: boolean; current: boolean }[]>`
+      select
+        c.relrowsecurity as rls,
+        exists (
+          select 1 from pg_attribute a
+          where a.attrelid = c.oid and a.attname = 'school' and not a.attisdropped
+        ) as current
+      from pg_class c where c.oid = to_regclass('registrations')
     `;
-    if (existing?.rls) return;
+    if (existing?.rls && existing.current) return;
     await sql.begin(async (tx) => {
       // Concurrent cold starts would otherwise race on CREATE … IF NOT EXISTS.
       await tx`select pg_advisory_xact_lock(hashtext('backyard:migrate'))`;
@@ -103,6 +125,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           name text not null,
           email text not null,
           phone text not null,
+          phone_verified boolean not null default false,
+          resident_status text,
+          sex text,
+          race text,
+          birthdate date,
+          occupation text,
+          school text,
           guests integer not null default 0,
           dietary text not null,
           dietary_notes text,
@@ -112,6 +141,17 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           checked_in_at timestamptz,
           created_at timestamptz not null default now()
         )
+      `;
+      // Columns added since launch, for tables created before them.
+      await tx`
+        alter table registrations
+          add column if not exists phone_verified boolean not null default false,
+          add column if not exists resident_status text,
+          add column if not exists sex text,
+          add column if not exists race text,
+          add column if not exists birthdate date,
+          add column if not exists occupation text,
+          add column if not exists school text
       `;
       await tx`
         create unique index if not exists registrations_event_email
@@ -165,6 +205,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           name: input.name,
           email: input.email,
           phone: input.phone,
+          phone_verified: input.phoneVerified,
+          resident_status: input.residentStatus,
+          sex: input.sex,
+          race: input.race,
+          birthdate: input.birthdate,
+          occupation: input.occupation,
+          school: input.school,
           guests: input.guests,
           dietary: input.dietary,
           dietary_notes: input.dietaryNotes,

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { ClearRegistrationProgress } from "@/components/registration/progress";
 import { Splat, Starburst } from "@/components/shapes";
 import { SiteHeader } from "@/components/site-header";
 import { event } from "@/content/event";
@@ -50,6 +51,7 @@ async function Pass({
 
   return (
     <div className="mx-auto max-w-xl">
+      {(query.new || query.existing) && <ClearRegistrationProgress />}
       {query.new && registration.status !== "cancelled" && (
         <p className="mb-6 rounded-2xl bg-lime px-5 py-4 text-center font-semibold text-forest-deep">
           {registration.status === "waitlist"
@@ -123,10 +125,17 @@ function Ticket({ registration }: { registration: Registration }) {
       </div>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-5 px-6 py-8 sm:px-10">
-        <Item label="Name">{registration.name}</Item>
-        <Item label="Party">
-          {party} {party === 1 ? "person" : "people"}
-        </Item>
+        {/* Only sign-ups from before everyone registered individually have friends. */}
+        {party > 1 ? (
+          <>
+            <Item label="Name">{registration.name}</Item>
+            <Item label="Party">{party} people</Item>
+          </>
+        ) : (
+          <Item label="Name" className="col-span-2">
+            {registration.name}
+          </Item>
+        )}
         <Item label="When">
           {eventDateLong()}
           <br />
@@ -185,9 +194,17 @@ function Ticket({ registration }: { registration: Registration }) {
   );
 }
 
-function Item({ label, children }: { label: string; children: React.ReactNode }) {
+function Item({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div>
+    <div className={className}>
       <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">{label}</dt>
       <dd className="mt-1 leading-snug font-semibold text-ink">{children}</dd>
     </div>

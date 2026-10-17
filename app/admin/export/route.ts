@@ -1,6 +1,7 @@
 import { event } from "@/content/event";
 import { isAdmin } from "@/lib/admin-auth";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
+import { ageOnEventDay } from "@/lib/registrations/demographics";
 
 const COLUMNS: [string, (r: Registration) => string | number | boolean | null][] = [
   ["code", (r) => r.code],
@@ -8,6 +9,14 @@ const COLUMNS: [string, (r: Registration) => string | number | boolean | null][]
   ["name", (r) => r.name],
   ["email", (r) => r.email],
   ["phone", (r) => r.phone],
+  ["phone_verified", (r) => r.phoneVerified],
+  ["resident_status", (r) => r.residentStatus],
+  ["sex", (r) => r.sex],
+  ["race", (r) => r.race],
+  ["birthdate", (r) => r.birthdate],
+  ["age_on_event_day", (r) => ageOnEventDay(r)],
+  ["occupation", (r) => r.occupation],
+  ["school", (r) => r.school],
   ["party_size", (r) => partySize(r)],
   ["guests", (r) => r.guests],
   ["dietary", (r) => r.dietary],

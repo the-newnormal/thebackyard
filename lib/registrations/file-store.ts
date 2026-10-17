@@ -24,9 +24,21 @@ function exclusive<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+// Fields added since launch, for rows saved before them.
+const LATER_FIELDS = {
+  phoneVerified: false,
+  residentStatus: null,
+  sex: null,
+  race: null,
+  birthdate: null,
+  occupation: null,
+  school: null,
+} satisfies Partial<Registration>;
+
 async function load(): Promise<Registration[]> {
   try {
-    return JSON.parse(await readFile(FILE, "utf8")) as Registration[];
+    const rows = JSON.parse(await readFile(FILE, "utf8")) as Registration[];
+    return rows.map((row) => ({ ...LATER_FIELDS, ...row }));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
