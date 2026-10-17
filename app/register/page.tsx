@@ -114,7 +114,6 @@ function Welcome({ availability }: { availability?: OpenAvailability }) {
           className="w-20 shrink-0 -rotate-2 rounded-sm shadow-md sm:w-24"
           sizes="96px"
           placeholder="blur"
-          priority
         />
         <dl className="space-y-2 text-[0.95rem] leading-snug">
           <div>
