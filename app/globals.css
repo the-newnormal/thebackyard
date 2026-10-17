@@ -143,8 +143,11 @@ body::before {
     background: var(--color-orange);
     color: var(--color-forest-deep);
   }
+  /* Set the colour here, not with a text-* utility on the element: utilities
+     outrank this layer and would also override the hover colour below. */
   .btn-outline {
     border: 2px solid currentColor;
+    color: var(--color-forest);
   }
   .btn-outline:hover {
     background: var(--color-forest);

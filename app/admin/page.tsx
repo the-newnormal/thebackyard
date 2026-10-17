@@ -33,7 +33,7 @@ export default function AdminPage() {
             <span className="font-serif text-xl text-muted italic">dashboard</span>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/admin/export" className="btn btn-outline px-4 py-2 text-sm text-forest">
+            <a href="/admin/export" className="btn btn-outline px-4 py-2 text-sm">
               Export CSV
             </a>
             {/* A full page load on sign-out, so no guest data lingers in the page. */}
