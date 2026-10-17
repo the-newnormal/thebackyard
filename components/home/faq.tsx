@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { faqs } from "@/content/copy";
-import { event } from "@/content/event";
+import { series } from "@/content/series";
 import { Starburst } from "../shapes";
 
 const linkClass = "font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion";
@@ -50,7 +50,7 @@ function ContactAnswer({ email, instagram }: { email: string; instagram: string 
 }
 
 export function Faq() {
-  const { email, instagram } = event.contact;
+  const { email, instagram } = series.contact;
   return (
     <section id="faq" className="mx-auto max-w-3xl px-4 py-24 sm:px-6 sm:py-32">
       <h2 className="font-brush text-7xl leading-none text-forest sm:text-8xl">good to know</h2>

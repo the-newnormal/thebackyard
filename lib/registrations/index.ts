@@ -1,5 +1,6 @@
 import "server-only";
-import { event } from "@/content/event";
+import { isRegistrationOpen } from "../editions/select";
+import type { Edition } from "../editions/types";
 import { createFileStore } from "./file-store";
 import { createPostgresStore } from "./postgres-store";
 import { placement, type RegistrationStore } from "./types";
@@ -32,31 +33,16 @@ export function getStore(): RegistrationStore {
   return (store = createFileStore());
 }
 
-export function getCapacity(): number | null {
-  const raw = process.env.EVENT_CAPACITY?.trim();
-  if (!raw) return event.capacity;
-  if (/^\d+$/.test(raw)) return Number(raw);
-  console.error(`Ignoring EVENT_CAPACITY=${JSON.stringify(raw)}: expected a whole number`);
-  return event.capacity;
-}
-
-export function isRegistrationOpen(now: Date): boolean {
-  const flag = process.env.REGISTRATION_OPEN?.trim().toLowerCase();
-  if (flag === "false" || flag === "0" || flag === "no") return false;
-  return now < new Date(event.registrationClosesAt);
-}
-
-
 export type Availability =
   | { state: "open"; spotsLeft: number | null }
   | { state: "waitlist" }
   | { state: "closed" };
 
-export async function getAvailability(now: Date): Promise<Availability> {
-  if (!isRegistrationOpen(now)) return { state: "closed" };
-  const capacity = getCapacity();
+export async function getAvailability(edition: Edition, now: Date): Promise<Availability> {
+  if (!isRegistrationOpen(edition, now)) return { state: "closed" };
+  const { capacity } = edition;
   if (capacity === null) return { state: "open", spotsLeft: null };
-  const { confirmed, waitlist } = await getStore().headcount(event.slug);
+  const { confirmed, waitlist } = await getStore().headcount(edition.slug);
   return placement(1, { confirmed, waiting: waitlist > 0 }, capacity) === "confirmed"
     ? { state: "open", spotsLeft: capacity - confirmed }
     : { state: "waitlist" };

@@ -1,13 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Splat, Starburst } from "@/components/shapes";
 import { SiteHeader } from "@/components/site-header";
-import { event } from "@/content/event";
+import { series } from "@/content/series";
 import { googleCalendarUrl } from "@/lib/calendar";
-import { eventDateLong, eventTimeRange, firstName } from "@/lib/format";
+import { editionState, isRegistrationOpen, registrable, type EditionState } from "@/lib/editions/select";
+import type { Edition } from "@/lib/editions/types";
+import {
+  eventDateLong,
+  eventDateShort,
+  eventTimeRange,
+  firstName,
+  venueMapsUrl,
+} from "@/lib/format";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
 import { isValidPassToken } from "@/lib/registrations/code";
 import { siteUrl } from "@/lib/site";
@@ -42,11 +51,24 @@ async function Pass({
   params,
   searchParams,
 }: Pick<PageProps<"/pass/[token]">, "params" | "searchParams">) {
+  await connection();
   const { token } = await params;
   if (!isValidPassToken(token)) notFound();
-  const registration = await getStore().getByPassToken(token);
+  const store = getStore();
+  const registration = await store.getByPassToken(token);
   if (!registration) notFound();
   const query = await searchParams;
+
+  // Always the pass's own date, never whichever one the homepage shows now.
+  const editions = await store.listEditions();
+  const now = new Date();
+  const edition = editions.find((e) => e.slug === registration.eventSlug) ?? null;
+  const state = edition && editionState(edition, now);
+  const open = registrable(editions, now);
+  const next =
+    edition && isRegistrationOpen(edition, now)
+      ? edition
+      : (open.find((e) => e.slug !== registration.eventSlug) ?? null);
 
   return (
     <div className="mx-auto max-w-xl">
@@ -63,20 +85,50 @@ async function Pass({
           release this spot and register again.
         </p>
       )}
-      <Ticket registration={registration} />
+      <Ticket registration={registration} edition={edition} state={state} next={next} />
     </div>
   );
 }
 
-function Ticket({ registration }: { registration: Registration }) {
+function Ticket({
+  registration,
+  edition,
+  state,
+  next,
+}: {
+  registration: Registration;
+  /** null only if the edition row is missing; the pass still shows the code. */
+  edition: Edition | null;
+  state: EditionState | null;
+  /** Where "register" links should go: this edition if still open, else the next open one. */
+  next: Edition | null;
+}) {
   const { status } = registration;
   const party = partySize(registration);
-  const headline =
-    status === "confirmed"
-      ? `you’re in, ${firstName(registration.name).toLowerCase()}!`
-      : status === "waitlist"
-        ? "you’re on the waitlist"
-        : "spot released";
+  const calledOff = state === "cancelled";
+  const over = state === "past";
+  const active = status !== "cancelled" && !calledOff && !over;
+  const name = firstName(registration.name).toLowerCase();
+  const headline = calledOff
+    ? "this one’s called off"
+    : status === "cancelled"
+      ? "spot released"
+      : over
+        ? registration.checkedInAt
+          ? `thanks for coming, ${name}!`
+          : "hope to see you next time"
+        : status === "confirmed"
+          ? `you’re in, ${name}!`
+          : "you’re on the waitlist";
+
+  const nextLink = next && (
+    <Link
+      href={`/register?edition=${next.slug}`}
+      className="font-semibold text-forest underline underline-offset-4"
+    >
+      {next.slug === edition?.slug ? "Register again" : `Register for ${eventDateShort(next)}`}
+    </Link>
+  );
 
   return (
     <article className="overflow-hidden rounded-3xl border-2 border-forest bg-card shadow-[10px_10px_0_var(--color-forest)]">
@@ -86,31 +138,63 @@ function Ticket({ registration }: { registration: Registration }) {
           color="var(--color-forest-deep)"
           className="absolute -inset-x-[10%] -inset-y-[10%] -z-10 h-[120%] w-[120%] opacity-60"
         />
-        <p className="font-serif text-xl text-lime italic">{event.tagline.join(" | ")}</p>
+        <p className="font-serif text-xl text-lime italic">{series.tagline.join(" | ")}</p>
         <p className="mt-2 font-display text-[clamp(2.25rem,11vw,4.5rem)] text-lime">BACKYARD</p>
         <p className="mt-1 font-serif text-2xl text-cream italic">
-          {event.shortName.toLowerCase()}
+          {series.shortName.toLowerCase()}
         </p>
       </header>
 
       <div className="px-6 pt-8 pb-6 text-center sm:px-10">
         <h1
-          className={`font-brush text-5xl leading-none sm:text-6xl ${status === "cancelled" ? "text-muted" : "text-forest"}`}
+          className={`font-brush text-5xl leading-none sm:text-6xl ${active || (over && status !== "cancelled") ? "text-forest" : "text-muted"}`}
         >
           {headline}
         </h1>
-        {status === "waitlist" && (
+        {calledOff && (
+          <p className="mx-auto mt-3 max-w-sm text-muted">
+            {edition?.notice ?? "Sorry — we’ve had to call this one off."}{" "}
+            {nextLink && <>The next one’s open: {nextLink}.</>}
+          </p>
+        )}
+        {!calledOff && edition?.notice && !over && (
+          <p className="mx-auto mt-4 max-w-sm rounded-2xl bg-mustard/40 px-4 py-3 font-semibold text-forest-deep">
+            {edition.notice}
+          </p>
+        )}
+        {active && status === "waitlist" && (
           <p className="mx-auto mt-3 max-w-sm text-muted">
             We’re at capacity for now. If a spot opens up, we’ll be in touch.
           </p>
         )}
-        {status === "cancelled" && (
+        {!calledOff && status === "cancelled" && (
           <p className="mx-auto mt-3 max-w-sm text-muted">
-            This registration was cancelled. Changed your mind?{" "}
-            <Link href="/register" className="font-semibold text-forest underline underline-offset-4">
-              Register again
-            </Link>
-            .
+            This registration was cancelled.{" "}
+            {nextLink ? (
+              <>
+                Changed your mind? {nextLink}.
+              </>
+            ) : (
+              "Keep an eye out for the next Backyard."
+            )}
+          </p>
+        )}
+        {over && status !== "cancelled" && (
+          <p className="mx-auto mt-3 max-w-sm text-muted">
+            {nextLink ? (
+              <>Backyard is back every month. {nextLink}.</>
+            ) : (
+              <>
+                Backyard is back every month. Follow{" "}
+                <a
+                  href={`https://instagram.com/${series.contact.instagram}`}
+                  className="font-semibold text-forest underline underline-offset-4"
+                >
+                  @{series.contact.instagram}
+                </a>{" "}
+                for the next date.
+              </>
+            )}
           </p>
         )}
       </div>
@@ -127,58 +211,77 @@ function Ticket({ registration }: { registration: Registration }) {
         <Item label="Party">
           {party} {party === 1 ? "person" : "people"}
         </Item>
-        <Item label="When">
-          {eventDateLong()}
-          <br />
-          {eventTimeRange()}
-        </Item>
-        <Item label="Where">
-          {event.venue.name}, {event.venue.level}
-          <br />
-          <span className="text-muted">{event.venue.address}</span>
-        </Item>
-        <div className="col-span-2 rounded-2xl bg-cream px-5 py-4 text-center">
-          <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">
-            Check-in code
-          </dt>
-          <dd className="mt-1 font-mono text-4xl font-bold tracking-[0.3em] text-forest">
-            {registration.code}
-          </dd>
-        </div>
+        {edition && (
+          <>
+            <Item label="When">
+              <span className={calledOff ? "line-through" : undefined}>
+                {eventDateLong(edition)}
+                <br />
+                {eventTimeRange(edition)}
+              </span>
+            </Item>
+            <Item label="Where">
+              {edition.venue.name}
+              {edition.venue.level && `, ${edition.venue.level}`}
+              <br />
+              <span className="text-muted">{edition.venue.address}</span>
+            </Item>
+          </>
+        )}
+        {!calledOff && (
+          <div className="col-span-2 rounded-2xl bg-cream px-5 py-4 text-center">
+            <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">
+              Check-in code
+            </dt>
+            <dd
+              className={`mt-1 font-mono text-4xl font-bold tracking-[0.3em] ${over ? "text-muted" : "text-forest"}`}
+            >
+              {registration.code}
+            </dd>
+          </div>
+        )}
       </dl>
 
-      {status !== "cancelled" && (
+      {active && (
         <div className="space-y-4 border-t-2 border-forest/10 px-6 py-6 sm:px-10">
-          <div className="flex flex-wrap justify-center gap-2">
-            <a
-              href={googleCalendarUrl(siteUrl())}
-              target="_blank"
-              rel="noreferrer"
-              className="btn btn-primary px-5 py-3 text-sm"
-            >
-              Add to Google Calendar
-            </a>
-            <a href="/event.ics" className="btn btn-outline px-5 py-3 text-sm">
-              Apple / Outlook (.ics)
-            </a>
-            <a
-              href={event.venue.mapsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="btn btn-outline px-5 py-3 text-sm"
-            >
-              Directions
-            </a>
-          </div>
-          <form action={releaseSpot.bind(null, registration.passToken)} className="text-center">
-            <ConfirmButton
-              confirm="Release your spot? Someone else will be able to take it."
-              pendingLabel="Releasing…"
-              className="text-sm font-semibold text-muted underline underline-offset-4 hover:text-red"
-            >
-              Plans changed? Release my spot
-            </ConfirmButton>
-          </form>
+          {edition && (
+            <div className="flex flex-wrap justify-center gap-2">
+              <a
+                href={googleCalendarUrl(edition, siteUrl())}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-primary px-5 py-3 text-sm"
+              >
+                Add to Google Calendar
+              </a>
+              <a
+                href={`/event.ics?edition=${edition.slug}`}
+                className="btn btn-outline px-5 py-3 text-sm"
+              >
+                Apple / Outlook (.ics)
+              </a>
+              <a
+                href={venueMapsUrl(edition.venue)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-outline px-5 py-3 text-sm"
+              >
+                Directions
+              </a>
+            </div>
+          )}
+          {/* Mid-event, a release would only confuse the check-in desk. */}
+          {state !== "live" && (
+            <form action={releaseSpot.bind(null, registration.passToken)} className="text-center">
+              <ConfirmButton
+                confirm="Release your spot? Someone else will be able to take it."
+                pendingLabel="Releasing…"
+                className="text-sm font-semibold text-muted underline underline-offset-4 hover:text-red"
+              >
+                Plans changed? Release my spot
+              </ConfirmButton>
+            </form>
+          )}
         </div>
       )}
     </article>

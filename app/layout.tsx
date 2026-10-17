@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Caveat_Brush, Instrument_Serif } from "next/font/google";
-import { event } from "@/content/event";
 import { brand } from "@/content/copy";
+import { series } from "@/content/series";
 import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
@@ -32,11 +32,11 @@ export const metadata: Metadata = {
     default: brand.siteName,
     template: `%s · ${brand.siteName}`,
   },
-  description: `${brand.line}. ${event.tagline.join(" | ")}. Join us at ${event.venue.name}.`,
+  description: `${brand.line}. ${series.tagline.join(" | ")}. A free community BBQ in Singapore, every month.`,
   openGraph: {
     siteName: brand.siteName,
     title: brand.siteName,
-    description: `${event.tagline.join(" | ")} — ${brand.line}.`,
+    description: `${series.tagline.join(" | ")} — ${brand.line}.`,
     type: "website",
     locale: "en_SG",
   },

@@ -13,7 +13,8 @@ import {
   SESSION_TTL_SECONDS,
 } from "@/lib/admin-session";
 import { sendConfirmationEmail } from "@/lib/email";
-import { getCapacity, getStore, type RegistrationStatus } from "@/lib/registrations";
+import { hasEnded } from "@/lib/editions/select";
+import { getStore, type RegistrationStatus } from "@/lib/registrations";
 import { isValidCode } from "@/lib/registrations/code";
 
 export async function login(
@@ -61,13 +62,19 @@ export async function setStatus(formData: FormData) {
   const store = getStore();
   const before = await store.getByCode(code);
   if (!before || before.status === status) return;
+  const edition = await store.getEdition(before.eventSlug);
+  const promoting = before.status === "waitlist" && status === "confirmed";
+  // Nobody should get "you're in" for a date that's over or called off.
+  if (promoting && (!edition || edition.status === "cancelled" || hasEnded(edition, new Date()))) {
+    return;
+  }
   const updated = await store.update(code, {
     status,
     ...(status === "cancelled" ? { checkedInAt: null } : {}),
   });
   // Let a waitlisted guest know they've been given a spot.
-  if (updated && before.status === "waitlist" && status === "confirmed") {
-    after(() => sendConfirmationEmail(updated));
+  if (updated && promoting && edition) {
+    after(() => sendConfirmationEmail(updated, edition));
   }
   refresh();
 }
@@ -77,7 +84,7 @@ export async function restoreRegistration(formData: FormData) {
   await requireAdmin();
   const code = codeFrom(formData);
   if (!code) return;
-  await getStore().restore(code, getCapacity());
+  await getStore().restore(code);
   refresh();
 }
 
