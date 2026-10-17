@@ -257,9 +257,11 @@ export function SearchList({
 export function CountryPicker({
   value,
   onChange,
+  disabled,
 }: {
   value: Country;
   onChange: (country: Country) => void;
+  disabled?: boolean;
 }) {
   const panelId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -279,6 +281,7 @@ export function CountryPicker({
       <button
         ref={trigger}
         type="button"
+        disabled={disabled}
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={`Country code: ${value.name} ${value.code}`}

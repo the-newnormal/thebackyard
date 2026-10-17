@@ -209,7 +209,7 @@ export const MORE_RACES: readonly string[] = [
   "Samoan",
   "Scot",
   "Serani",
-  "Serbia/Montengerin",
+  "Serbian/Montenegrin",
   "Seychellois",
   "Shan",
   "Sikh",

@@ -146,6 +146,15 @@ const FIELD_STEP: Record<string, StepKey> = {
   phone: "phone",
 };
 
+/**
+ * Whether the code step is in the list. Picking SG shows it up front; an SG
+ * number pasted under another country is texted a code too.
+ */
+function offersCode(values: Values, verifyPhone: boolean): boolean {
+  const phone = phoneOf(values);
+  return verifyPhone && (phone.country.code === "+65" || isSingaporeNumber(phone.normalized));
+}
+
 function stepsFor(values: Values, verifyPhone: boolean): StepKey[] {
   return [
     "name",
@@ -158,7 +167,7 @@ function stepsFor(values: Values, verifyPhone: boolean): StepKey[] {
     "dietary",
     "email",
     "phone",
-    ...(verifyPhone && phoneOf(values).country.code === "+65" ? (["code"] as const) : []),
+    ...(offersCode(values, verifyPhone) ? (["code"] as const) : []),
     "pdpa",
   ];
 }
@@ -202,7 +211,7 @@ function asideFor(step: StepKey, values: Values, verifyPhone: boolean): string |
     case "email":
       return "your pass goes here";
     case "phone":
-      return verifyPhone && phoneOf(values).country.code === "+65"
+      return offersCode(values, verifyPhone)
         ? "we’ll text you a code to check it’s you"
         : "so we can reach you on the day";
     case "code":
@@ -840,8 +849,10 @@ export function RegistrationFlow({
             </Question>
             {banner}
             <div className="flex gap-2">
+              {/* The code goes to the number as sent, so it holds still till then. */}
               <CountryPicker
                 value={phone.country}
+                disabled={phoneBusy}
                 onChange={(c) => {
                   update({ phoneCountry: c.name });
                   phoneInput.current?.focus();
@@ -857,7 +868,8 @@ export function RegistrationFlow({
                 enterKeyHint={verifyPhone ? "send" : "next"}
                 maxLength={20}
                 value={values.phoneLocal}
-                onChange={(e) => update({ phoneLocal: e.target.value })}
+                // Ignored rather than read-only, which would drop the phone keyboard.
+                onChange={(e) => !phoneBusy && update({ phoneLocal: e.target.value })}
                 placeholder="9123 4567"
                 className="field h-16 min-w-0 flex-1 px-5 text-2xl tabular-nums"
               />
@@ -927,7 +939,12 @@ export function RegistrationFlow({
                 {resendIn > 0 ? `Send again in ${resendIn}s` : "Send again"}
               </button>
               {" · "}
-              <button type="button" onClick={back} className={LINK}>
+              <button
+                type="button"
+                disabled={phoneBusy}
+                onClick={back}
+                className={`${LINK} disabled:text-muted disabled:no-underline`}
+              >
                 Change number
               </button>
             </p>

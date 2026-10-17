@@ -170,9 +170,19 @@ export async function register(
   const { registration } = result;
 
   if (result.kind === "duplicate") {
-    // Only hand the existing pass to someone who also knows the phone number.
-    if (normalizePhone(registration.phone) === data.phone) {
+    // Only hand the existing pass to someone who also knows the phone number,
+    // and, when codes are on, got one: a skipped check proves nothing.
+    const samePhone = normalizePhone(registration.phone) === data.phone;
+    if (samePhone && (!needsCode || check?.verified)) {
       redirect(`/pass/${registration.passToken}?existing=1`);
+    }
+    if (samePhone) {
+      return {
+        message: isEmailConfigured()
+          ? "This email is already registered. Check your inbox for your pass, or try again later to confirm your number by text."
+          : "This email is already registered. Try again later to confirm your number by text and get your pass back.",
+        fieldErrors: { email: ["Already registered"] },
+      };
     }
     return {
       message: isEmailConfigured()
@@ -229,7 +239,13 @@ export async function sendPhoneCode(
   if (!isSingaporeNumber(phone.data)) return { error: "We only text codes to Singapore numbers" };
 
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (!allowSend(ip, Date.now())) return { error: TOO_MANY };
+  const allowed = allowSend(ip, Date.now());
+  if (allowed === "visitor") return { error: TOO_MANY };
+  // Lots of texts from everyone lately: send none, but don't turn them away.
+  if (allowed === "busy") {
+    console.warn("Texted codes skipped: this instance reached its send limit");
+    return skip(phone.data, String(email));
+  }
 
   switch (await sendVerificationCode(phone.data)) {
     case "sent":

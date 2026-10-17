@@ -59,14 +59,20 @@ const PER_IP = 5;
 const PER_INSTANCE = 100;
 const sends = new Map<string, number[]>();
 
-export function allowSend(ip: string, nowMs: number): boolean {
+/** "visitor" when this IP has had its share; "busy" when this instance has. */
+export function allowSend(ip: string, nowMs: number): "ok" | "visitor" | "busy" {
+  // Forget visitors whose sends have all expired.
+  for (const [key, times] of sends) {
+    if (times.every((t) => nowMs - t >= WINDOW_MS)) sends.delete(key);
+  }
   const recent = (key: string) => (sends.get(key) ?? []).filter((t) => nowMs - t < WINDOW_MS);
   const mine = recent(ip);
   const everyone = recent("*");
-  if (mine.length >= PER_IP || everyone.length >= PER_INSTANCE) return false;
+  if (mine.length >= PER_IP) return "visitor";
+  if (everyone.length >= PER_INSTANCE) return "busy";
   sends.set(ip, [...mine, nowMs]);
   sends.set("*", [...everyone, nowMs]);
-  return true;
+  return "ok";
 }
 
 /** "blocked" covers Twilio refusing the destination (Fraud Guard, geo permissions). */
