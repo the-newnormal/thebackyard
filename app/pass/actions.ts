@@ -1,12 +1,19 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { hasEnded } from "@/lib/editions/select";
 import { getStore } from "@/lib/registrations";
 import { isValidPassToken } from "@/lib/registrations/code";
 
-/** Lets a guest give up their spot from their pass link. */
+/** Lets a guest give up their spot from their pass link, until the event ends. */
 export async function releaseSpot(passToken: string): Promise<void> {
   if (!isValidPassToken(passToken)) return;
-  await getStore().releaseByPassToken(passToken);
+  const store = getStore();
+  const registration = await store.getByPassToken(passToken);
+  if (!registration) return;
+  const edition = await store.getEdition(registration.eventSlug);
+  // Afterwards (or once called off) the list is the record of who came.
+  if (edition && (edition.status === "cancelled" || hasEnded(edition, new Date()))) return;
+  await store.releaseByPassToken(passToken);
   refresh();
 }

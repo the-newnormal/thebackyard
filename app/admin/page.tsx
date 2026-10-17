@@ -1,19 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { event } from "@/content/event";
+import { ConfirmButton } from "@/components/confirm-button";
 import { requireAdmin } from "@/lib/admin-auth";
+import { adminFocus, editionState, isRegistrationOpen } from "@/lib/editions/select";
+import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured } from "@/lib/email";
-import { eventDateLong } from "@/lib/format";
+import { eventDateLong, eventDateShort, eventTimeRange, formatMoment } from "@/lib/format";
 import {
   DIETARY_OPTIONS,
-  getCapacity,
   getStore,
   HEARD_FROM_OPTIONS,
   partySize,
   StoreNotConfiguredError,
   type Registration,
 } from "@/lib/registrations";
+import { AdminHeader } from "./admin-header";
+import { EditionBadge } from "./edition-badge";
+import { setRegistrationWindow } from "./editions/actions";
 import { RegistrationList } from "./registration-list";
 
 export const metadata: Metadata = {
@@ -21,47 +25,26 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function AdminPage() {
+export default function AdminPage({ searchParams }: PageProps<"/admin">) {
   return (
     <>
-      <header className="border-b-2 border-forest/10 bg-paper/90">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <div className="flex items-baseline gap-3">
-            <Link href="/" className="font-display text-2xl text-forest">
-              BACKYARD
-            </Link>
-            <span className="font-serif text-xl text-muted italic">dashboard</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <a href="/admin/export" className="btn btn-outline px-4 py-2 text-sm">
-              Export CSV
-            </a>
-            {/* A full page load on sign-out, so no guest data lingers in the page. */}
-            <form method="post" action="/admin/logout">
-              <button type="submit" className="btn px-4 py-2 text-sm text-muted hover:text-red">
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+      <AdminHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-        <h1 className="font-heading text-3xl text-forest">{event.name}</h1>
-        <p className="mt-1 text-muted">{eventDateLong()}</p>
         <Suspense fallback={<DashboardSkeleton />}>
-          <Dashboard />
+          <Dashboard searchParams={searchParams} />
         </Suspense>
       </main>
     </>
   );
 }
 
-async function Dashboard() {
+async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchParams">) {
   await requireAdmin();
+  const { edition: requested } = await searchParams;
 
-  let registrations: Registration[];
+  let editions: Edition[];
   try {
-    registrations = await getStore().list(event.slug);
+    editions = await getStore().listEditions();
   } catch (error) {
     if (error instanceof StoreNotConfiguredError) {
       return (
@@ -73,12 +56,31 @@ async function Dashboard() {
     throw error;
   }
 
+  const now = new Date();
+  // Defaults to tonight's date until the morning after, so check-in stays put.
+  const edition = editions.find((e) => e.slug === requested) ?? adminFocus(editions, now);
+  if (!edition) {
+    return (
+      <div className="mt-8 rounded-3xl border-2 border-dashed border-forest/30 p-10 text-center">
+        <h1 className="font-heading text-3xl text-forest">No dates yet</h1>
+        <p className="mt-2 text-muted">Plan the first Backyard and its sign-ups show up here.</p>
+        <Link href="/admin/editions/new" className="btn btn-primary mt-6">
+          Plan a date
+        </Link>
+      </div>
+    );
+  }
+
+  const registrations = await getStore().list(edition.slug);
+  const state = editionState(edition, now);
   const active = registrations.filter((r) => r.status !== "cancelled");
   const people = (rows: Registration[]) => rows.reduce((sum, r) => sum + partySize(r), 0);
   const confirmed = active.filter((r) => r.status === "confirmed");
   const waitlist = active.filter((r) => r.status === "waitlist");
   const checkedIn = active.filter((r) => r.checkedInAt);
-  const capacity = getCapacity();
+  const { capacity } = edition;
+  // Giving a spot emails a confirmation; pointless once it's over or called off.
+  const allowPromote = state !== "past" && state !== "cancelled";
 
   // Food prep is for people who are actually coming.
   const dietary = DIETARY_OPTIONS.map((o) => ({
@@ -95,7 +97,43 @@ async function Dashboard() {
 
   return (
     <>
-      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <EditionSwitcher editions={editions} current={edition} now={now} />
+
+      <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-3xl text-forest">{eventDateLong(edition)}</h1>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-muted">
+            {eventTimeRange(edition)} · {edition.venue.name}
+            <EditionBadge
+              edition={edition}
+              now={now}
+              stats={{
+                registrations: registrations.length,
+                confirmed: people(confirmed),
+                waitlist: people(waitlist),
+                checkedIn: people(checkedIn),
+              }}
+            />
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <WindowButton edition={edition} now={now} />
+          <Link
+            href={`/admin/editions/${edition.slug}`}
+            className="btn btn-outline px-4 py-2 text-sm"
+          >
+            Edit date
+          </Link>
+          <a
+            href={`/admin/export?edition=${edition.slug}`}
+            className="btn btn-outline px-4 py-2 text-sm"
+          >
+            Export CSV
+          </a>
+        </div>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           label="Coming (people)"
           value={people(confirmed)}
@@ -126,7 +164,7 @@ async function Dashboard() {
         />
       </div>
 
-      {waitlist.length > 0 && !isEmailConfigured() && (
+      {waitlist.length > 0 && allowPromote && !isEmailConfigured() && (
         <p className="mt-3 rounded-2xl bg-mustard/30 px-5 py-4 text-ink">
           Emails are off, so “Give a spot” doesn’t notify anyone. Message the guest yourself —
           their email and phone are in the list below.
@@ -144,8 +182,77 @@ async function Dashboard() {
         <Breakdown title="Heard about us via" rows={heardFrom} />
       </div>
 
-      <RegistrationList registrations={registrations} />
+      <RegistrationList registrations={registrations} allowPromote={allowPromote} />
     </>
+  );
+}
+
+/** The dates either side of the one shown, plus a link to all of them. */
+function EditionSwitcher({
+  editions,
+  current,
+  now,
+}: {
+  editions: Edition[];
+  current: Edition;
+  now: Date;
+}) {
+  const distance = (e: Edition) => Math.abs(new Date(e.startsAt).getTime() - now.getTime());
+  const nearby = [...editions]
+    .sort((a, b) => distance(a) - distance(b))
+    .slice(0, 3)
+    .concat(current)
+    .filter((e, i, list) => list.findIndex((x) => x.slug === e.slug) === i)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  return (
+    <nav aria-label="Choose a date" className="flex flex-wrap items-center gap-2">
+      {nearby.map((e) => (
+        <Link
+          key={e.slug}
+          href={`/admin?edition=${e.slug}`}
+          aria-current={e.slug === current.slug ? "page" : undefined}
+          className={`rounded-full border-2 px-3 py-1.5 text-sm font-semibold transition-colors ${
+            e.slug === current.slug
+              ? "border-forest bg-forest text-cream"
+              : "border-forest/20 bg-card text-forest hover:border-forest"
+          }`}
+        >
+          {eventDateShort(e)}
+          {e.status === "draft" && " (draft)"}
+        </Link>
+      ))}
+      <Link
+        href="/admin/editions"
+        className="px-2 py-1.5 text-sm font-semibold text-forest underline underline-offset-4"
+      >
+        All dates
+      </Link>
+    </nav>
+  );
+}
+
+/**
+ * Close sign-ups early while they're open, or reopen them (until the start)
+ * after closing. Not shown before sign-ups open or once the event has started.
+ */
+function WindowButton({ edition, now }: { edition: Edition; now: Date }) {
+  const close = isRegistrationOpen(edition, now);
+  if (!close && editionState(edition, now) !== "closed") return null;
+  return (
+    <form action={setRegistrationWindow}>
+      <input type="hidden" name="slug" value={edition.slug} />
+      <input type="hidden" name="mode" value={close ? "close" : "reopen"} />
+      <ConfirmButton
+        confirm={
+          close
+            ? "Close sign-ups now? New people won’t be able to register."
+            : `Reopen sign-ups until ${formatMoment(edition.startsAt)}?`
+        }
+        className="btn btn-outline px-4 py-2 text-sm"
+      >
+        {close ? "Close sign-ups now" : "Reopen sign-ups"}
+      </ConfirmButton>
+    </form>
   );
 }
 

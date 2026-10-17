@@ -1,8 +1,8 @@
 import { brand } from "@/content/copy";
-import { event } from "@/content/event";
+import { series } from "@/content/series";
 import { Starburst } from "../shapes";
 
-const words = [...event.tagline, ...brand.personality];
+const words = [...series.tagline, ...brand.personality];
 
 function Run() {
   return (

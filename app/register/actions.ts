@@ -2,18 +2,17 @@
 
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { event } from "@/content/event";
+import { isRegistrationOpen, registrable } from "@/lib/editions/select";
+import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured, sendConfirmationEmail } from "@/lib/email";
-import {
-  getCapacity,
-  getStore,
-  isRegistrationOpen,
-  StoreNotConfiguredError,
-} from "@/lib/registrations";
+import { eventDateShort } from "@/lib/format";
+import { getStore, StoreNotConfiguredError } from "@/lib/registrations";
 import { normalizePhone, registrationSchema } from "@/lib/registrations/schema";
 
 export type RegisterState = {
   message?: string;
+  /** Shown after the message, e.g. to the next open date. */
+  link?: { href: string; label: string };
   fieldErrors?: Partial<Record<string, string[]>>;
   values?: Record<string, string>;
 };
@@ -41,12 +40,49 @@ export async function register(
   const values = Object.fromEntries(
     FIELDS.map((key) => [key, String(formData.get(key) ?? "")]),
   );
+  const failed = (error: unknown): RegisterState => {
+    console.error("Registration failed", error);
+    return {
+      message:
+        error instanceof StoreNotConfiguredError
+          ? "Registration isn’t set up yet (no database configured). Please let the organisers know."
+          : "Something went wrong saving your registration. Please try again in a moment.",
+      values,
+    };
+  };
 
-  if (!isRegistrationOpen(new Date())) {
-    return { message: "Registration has closed for this one — see you at the next Backyard!", values };
+  // Forms opened before editions existed have no edition field; they can only
+  // have been for the one that's open now.
+  const requested = String(formData.get("edition") ?? "");
+  let editions: Edition[];
+  try {
+    editions = await getStore().listEditions();
+  } catch (error) {
+    return failed(error);
   }
+  const now = new Date();
+  const open = registrable(editions, now);
+  const edition = requested
+    ? editions.find((e) => e.slug === requested && e.status !== "draft")
+    : open[0];
+  const closed = (): RegisterState => {
+    const next = open.find((e) => e.slug !== edition?.slug);
+    return {
+      message: !edition
+        ? "Registration has closed for this one — see you at the next Backyard!"
+        : edition.status === "cancelled"
+          ? `Sorry, ${eventDateShort(edition)} has been called off.`
+          : `Registration for ${eventDateShort(edition)} has closed.`,
+      link: next && {
+        href: `/register?edition=${next.slug}`,
+        label: `Register for ${eventDateShort(next)} instead →`,
+      },
+      values,
+    };
+  };
+  if (!edition || !isRegistrationOpen(edition, now)) return closed();
 
-  const parsed = registrationSchema.safeParse({
+  const parsed = registrationSchema(edition.maxGuests).safeParse({
     ...values,
     heardFrom: values.heardFrom || null,
     consent: values.consent || null,
@@ -67,17 +103,13 @@ export async function register(
 
   let result;
   try {
-    result = await getStore().register({ ...data, eventSlug: event.slug }, getCapacity());
+    result = await getStore().register({ ...data, eventSlug: edition.slug });
   } catch (error) {
-    console.error("Registration failed", error);
-    return {
-      message:
-        error instanceof StoreNotConfiguredError
-          ? "Registration isn’t set up yet (no database configured). Please let the organisers know."
-          : "Something went wrong saving your registration. Please try again in a moment.",
-      values,
-    };
+    return failed(error);
   }
+
+  // It closed (or was called off) between loading it and saving the sign-up.
+  if (result.kind === "closed") return closed();
 
   const { registration } = result;
 
@@ -95,6 +127,6 @@ export async function register(
     };
   }
 
-  after(() => sendConfirmationEmail(registration));
+  after(() => sendConfirmationEmail(registration, edition));
   redirect(`/pass/${registration.passToken}?new=1`);
 }

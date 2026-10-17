@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { brand } from "@/content/copy";
-import { event } from "@/content/event";
-import { eventDateLong, eventTimeRange } from "@/lib/format";
+import { series } from "@/content/series";
 import { Starburst } from "./shapes";
 
-export function SiteFooter() {
-  const { email, instagram } = event.contact;
+/** `cta`: show the "Save your spot" link (only while a date takes sign-ups). */
+export function SiteFooter({ cta = true }: { cta?: boolean }) {
+  const { email, instagram } = series.contact;
   return (
     <footer className="relative overflow-hidden bg-forest-deep text-cream">
       <Starburst
@@ -19,15 +19,8 @@ export function SiteFooter() {
           <p className="mt-3 font-serif text-2xl italic text-cream/90">{brand.line}</p>
         </div>
         <div className="space-y-2 text-cream/85">
-          <p className="font-heading text-lg text-cream">{event.name}</p>
-          <p>
-            {eventDateLong()} · {eventTimeRange()}
-          </p>
-          <p>
-            {event.venue.name}, {event.venue.level}
-            <br />
-            {event.venue.address}
-          </p>
+          <p className="font-heading text-lg text-cream">{series.name}</p>
+          <p>A free community BBQ in Singapore, every month.</p>
           {(email || instagram) && (
             <p className="flex flex-wrap gap-x-4 pt-2">
               {email && (
@@ -49,10 +42,12 @@ export function SiteFooter() {
       </div>
       <div className="relative border-t border-cream/15">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-cream/60 sm:px-6">
-          <p>Hosted by {event.organiser}</p>
-          <Link href="/register" className="hover:text-lime">
-            Save your spot →
-          </Link>
+          <p>Hosted by {series.organiser}</p>
+          {cta && (
+            <Link href="/register" className="hover:text-lime">
+              Save your spot →
+            </Link>
+          )}
         </div>
       </div>
     </footer>

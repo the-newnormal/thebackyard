@@ -35,7 +35,14 @@ function matches(r: Registration, filter: Filter): boolean {
   }
 }
 
-export function RegistrationList({ registrations }: { registrations: Registration[] }) {
+export function RegistrationList({
+  registrations,
+  allowPromote,
+}: {
+  registrations: Registration[];
+  /** False once the date is over or called off. */
+  allowPromote: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("active");
 
@@ -95,14 +102,14 @@ export function RegistrationList({ registrations }: { registrations: Registratio
           </li>
         )}
         {visible.map((r) => (
-          <Row key={r.code} registration={r} />
+          <Row key={r.code} registration={r} allowPromote={allowPromote} />
         ))}
       </ul>
     </section>
   );
 }
 
-function Row({ registration: r }: { registration: Registration }) {
+function Row({ registration: r, allowPromote }: { registration: Registration; allowPromote: boolean }) {
   const checkedIn = Boolean(r.checkedInAt);
   return (
     <li className={`grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-center ${r.status === "cancelled" ? "opacity-60" : ""}`}>
@@ -159,7 +166,7 @@ function Row({ registration: r }: { registration: Registration }) {
             </ConfirmButton>
           </form>
         )}
-        {r.status === "waitlist" && (
+        {r.status === "waitlist" && allowPromote && (
           <StatusButton code={r.code} status="confirmed" label="Give a spot" />
         )}
         {r.status === "cancelled" ? (

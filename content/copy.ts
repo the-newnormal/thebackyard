@@ -1,6 +1,6 @@
 // Site copy, adapted from the Backyard brand guide. Edit freely.
 
-import { event } from "./event";
+import { series } from "./series";
 
 export const brand = {
   // Browser tab titles, link previews and search results.
@@ -64,6 +64,8 @@ export const faqs = [
   {
     q: "Can I bring friends?",
     a: "Please do. Add them when you register, or send them the link so they can sign up themselves.",
+    // When a date allows no friends on one registration.
+    aSolo: "Please do! This time everyone registers for themselves, so send them the link.",
   },
   {
     q: "I have dietary needs.",
@@ -74,12 +76,16 @@ export const faqs = [
     a: "Not at all. Come alone, come as you are. Leaving with new friends is kind of the point.",
   },
   {
+    q: "How often is Backyard?",
+    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram, or tick “keep me posted” when you register, to hear when the next date opens.`,
+  },
+  {
     q: "How do I get there?",
-    a: "Head to *SCAPE Plaza on Level 1 of *SCAPE, 2 Orchard Link — a short walk from Somerset MRT.",
+    a: "The venue and directions for each Backyard are under “The night” above, and on your pass.",
   },
   {
     q: "What if there’s haze?",
-    a: `The BBQ may be called off if the PSI forecast reaches the “unhealthy” range. We’ll post any updates on Instagram at @${event.contact.instagram}.`,
+    a: `The BBQ may be called off if the PSI forecast reaches the “unhealthy” range. We’ll post any updates on Instagram at @${series.contact.instagram}.`,
   },
   {
     q: "Plans changed?",

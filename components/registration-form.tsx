@@ -1,14 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { register, type RegisterState } from "@/app/register/actions";
-import { event } from "@/content/event";
 import { DIETARY_OPTIONS, HEARD_FROM_OPTIONS } from "@/lib/registrations/types";
 
-const guestOptions = Array.from({ length: event.maxGuests + 1 }, (_, n) => ({
-  value: String(n),
-  label: n === 0 ? "Just me" : `Me + ${n}`,
-}));
+const guestOptions = (maxGuests: number) =>
+  Array.from({ length: maxGuests + 1 }, (_, n) => ({
+    value: String(n),
+    label: n === 0 ? "Just me" : `Me + ${n}`,
+  }));
 
 function FieldError({ id, errors }: { id: string; errors?: string[] }) {
   if (!errors?.length) return null;
@@ -28,7 +29,18 @@ function Label({ htmlFor, children, hint }: { htmlFor?: string; children: React.
   );
 }
 
-export function RegistrationForm({ waitlist = false }: { waitlist?: boolean }) {
+export function RegistrationForm({
+  edition,
+  maxGuests,
+  organiser,
+  waitlist = false,
+}: {
+  /** Slug of the edition this form signs people up for. */
+  edition: string;
+  maxGuests: number;
+  organiser: string;
+  waitlist?: boolean;
+}) {
   const [state, action, pending] = useActionState<RegisterState, FormData>(register, {});
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
@@ -55,8 +67,20 @@ export function RegistrationForm({ waitlist = false }: { waitlist?: boolean }) {
           className="rounded-xl border-2 border-red bg-red/10 px-4 py-3 font-semibold text-red"
         >
           {state.message}
+          {state.link && (
+            <>
+              {" "}
+              <Link href={state.link.href} className="underline underline-offset-4">
+                {state.link.label}
+              </Link>
+            </>
+          )}
         </div>
       )}
+
+      {/* Which date this form is for, so a form left open past closing time
+          isn't quietly moved to the next one. */}
+      <input type="hidden" name="edition" value={edition} />
 
       {/* Honeypot */}
       <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
@@ -120,31 +144,37 @@ export function RegistrationForm({ waitlist = false }: { waitlist?: boolean }) {
         </div>
       </div>
 
-      <fieldset>
-        <legend className="mb-3 font-bold text-forest">
-          Bringing friends?
-          <span className="ml-2 text-sm font-normal text-muted">up to {event.maxGuests}</span>
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {guestOptions.map((o) => (
-            <label key={o.value} className="pill">
-              <input
-                type="radio"
-                name="guests"
-                value={o.value}
-                defaultChecked={(v.guests || "0") === o.value}
-              />
-              <span>{o.label}</span>
-            </label>
-          ))}
-        </div>
-        <FieldError id="guests-error" errors={e.guests} />
-      </fieldset>
+      {maxGuests > 0 ? (
+        <fieldset>
+          <legend className="mb-3 font-bold text-forest">
+            Bringing friends?
+            <span className="ml-2 text-sm font-normal text-muted">up to {maxGuests}</span>
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {guestOptions(maxGuests).map((o) => (
+              <label key={o.value} className="pill">
+                <input
+                  type="radio"
+                  name="guests"
+                  value={o.value}
+                  defaultChecked={(v.guests || "0") === o.value}
+                />
+                <span>{o.label}</span>
+              </label>
+            ))}
+          </div>
+          <FieldError id="guests-error" errors={e.guests} />
+        </fieldset>
+      ) : (
+        <input type="hidden" name="guests" value="0" />
+      )}
 
       <fieldset>
         <legend className="mb-3 font-bold text-forest">
           Dietary needs
-          <span className="ml-2 text-sm font-normal text-muted">for you and your friends</span>
+          {maxGuests > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted">for you and your friends</span>
+          )}
         </legend>
         <div className="flex flex-wrap gap-2">
           {DIETARY_OPTIONS.map((o) => (
@@ -173,7 +203,9 @@ export function RegistrationForm({ waitlist = false }: { waitlist?: boolean }) {
             className="field resize-y"
             defaultValue={v.dietaryNotes}
             aria-invalid={invalid("dietaryNotes")}
-            placeholder="e.g. peanut allergy, one friend is vegetarian"
+            placeholder={
+              maxGuests > 0 ? "e.g. peanut allergy, one friend is vegetarian" : "e.g. peanut allergy"
+            }
           />
           <FieldError id="dietaryNotes-error" errors={e.dietaryNotes} />
         </div>
@@ -211,7 +243,7 @@ export function RegistrationForm({ waitlist = false }: { waitlist?: boolean }) {
             aria-describedby={describedBy("consent")}
           />
           <span>
-            I agree to {event.organiser} collecting and using my details to manage my
+            I agree to {organiser} collecting and using my details to manage my
             registration and contact me about this event.
           </span>
         </label>

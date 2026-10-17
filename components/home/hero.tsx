@@ -1,9 +1,19 @@
 import Link from "next/link";
-import { event } from "@/content/event";
-import { eventDayMonth, eventTimeRange, eventWeekdayShort } from "@/lib/format";
+import { series } from "@/content/series";
+import type { PublicSchedule } from "@/lib/editions/public";
+import {
+  eventDateShort,
+  eventDayMonth,
+  eventTimeRange,
+  eventWeekdayShort,
+  formatMoment,
+  venueLevelShort,
+} from "@/lib/format";
 import { Splat, Starburst } from "../shapes";
 
-export function Hero() {
+export function Hero({ schedule }: { schedule: PublicSchedule }) {
+  const edition = schedule.featured;
+  const level = edition && venueLevelShort(edition.venue.level);
   return (
     <section className="relative isolate overflow-hidden">
       <Starburst className="absolute -top-16 -left-20 -z-10 w-56 -rotate-12 sm:w-80" />
@@ -14,7 +24,7 @@ export function Hero() {
 
       <div className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-6xl flex-col items-center justify-center px-4 py-16 text-center sm:px-6">
         <p className="relative z-10 font-serif text-xl italic text-forest sm:text-2xl">
-          {event.tagline.join(" | ")}
+          {series.tagline.join(" | ")}
         </p>
 
         <div className="relative my-8 w-full sm:my-12">
@@ -30,30 +40,77 @@ export function Hero() {
               BACKYARD
             </span>
             <span className="mt-2 block pl-[28%] font-serif text-[clamp(1.4rem,4.2vw,3rem)] leading-none text-cream italic">
-              {event.shortName.toLowerCase()}
+              {series.shortName.toLowerCase()}
             </span>
           </h1>
         </div>
 
         <p className="relative z-10 font-condensed text-2xl leading-tight text-forest sm:text-3xl">
-          <span className="block sm:inline">
-            {eventDayMonth()} ({eventWeekdayShort()}) · {eventTimeRange()}
-          </span>
-          <span className="hidden sm:inline"> · </span>
-          <span className="block sm:inline">
-            {event.venue.name} @ L1
-          </span>
+          {edition ? (
+            <>
+              <span className="block sm:inline">
+                {eventDayMonth(edition)} ({eventWeekdayShort(edition)}) · {eventTimeRange(edition)}
+              </span>
+              <span className="hidden sm:inline"> · </span>
+              <span className="block sm:inline">
+                {edition.venue.name}
+                {level && ` @ ${level}`}
+              </span>
+            </>
+          ) : (
+            "every month · next date coming soon"
+          )}
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/register" className="btn btn-primary px-7 py-4 text-lg">
-            Save my spot <span aria-hidden="true">→</span>
-          </Link>
+          <PrimaryAction schedule={schedule} />
           <Link href="#why" className="btn btn-outline px-6 py-4 text-lg">
             Why Backyard?
           </Link>
         </div>
       </div>
     </section>
+  );
+}
+
+function PrimaryAction({ schedule }: { schedule: PublicSchedule }) {
+  const { featured, featuredState, openFor, nextOpening } = schedule;
+
+  if (openFor) {
+    return (
+      <Link href={`/register?edition=${openFor.slug}`} className="btn btn-primary px-7 py-4 text-lg">
+        {openFor.slug === featured?.slug ? "Save my spot" : `Register for ${eventDateShort(openFor)}`}{" "}
+        <span aria-hidden="true">→</span>
+      </Link>
+    );
+  }
+
+  const status =
+    featuredState === "live"
+      ? "Happening now — see you there"
+      : featuredState === "closed"
+        ? "Registration has closed — see you there"
+        : nextOpening
+          ? `Sign-ups for ${eventDateShort(nextOpening)} open ${formatMoment(nextOpening.registrationOpensAt!)}`
+          : null;
+
+  if (status) {
+    return (
+      <p className="rounded-full border-2 border-dashed border-forest/40 bg-card/70 px-6 py-4 text-lg font-semibold text-forest">
+        {status}
+      </p>
+    );
+  }
+
+  const { instagram } = series.contact;
+  return (
+    <a
+      href={`https://instagram.com/${instagram}`}
+      target="_blank"
+      rel="noreferrer"
+      className="btn btn-primary px-7 py-4 text-lg"
+    >
+      Follow @{instagram} for the next date
+    </a>
   );
 }

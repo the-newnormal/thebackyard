@@ -2,22 +2,40 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
+import { PosterCard } from "@/components/home/poster-card";
 import { RegistrationForm } from "@/components/registration-form";
 import { Starburst } from "@/components/shapes";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { event } from "@/content/event";
-import { eventDateLong, eventTimeRange } from "@/lib/format";
-import { getAvailability, isStoreConfigured } from "@/lib/registrations";
-import poster from "@/public/poster.webp";
+import { series } from "@/content/series";
+import {
+  editionState,
+  featured,
+  isRegistrationOpen,
+  nextOpening,
+  registrable,
+} from "@/lib/editions/select";
+import type { Edition } from "@/lib/editions/types";
+import {
+  eventDateLong,
+  eventDateShort,
+  eventTimeRange,
+  formatMoment,
+} from "@/lib/format";
+import {
+  getAvailability,
+  getStore,
+  isStoreConfigured,
+  type Availability,
+} from "@/lib/registrations";
 
 export const metadata: Metadata = {
   title: "Register",
-  description: `Save your spot at the ${event.name} — ${eventDateLong()}, ${eventTimeRange()} at ${event.venue.name}.`,
+  description: "Save your spot at Backyard, a free community BBQ in Singapore every month.",
 };
 
-export default function RegisterPage() {
+export default function RegisterPage({ searchParams }: PageProps<"/register">) {
   return (
     <>
       <SiteHeader cta={false} />
@@ -25,7 +43,7 @@ export default function RegisterPage() {
         <Starburst className="absolute -top-20 -right-24 -z-10 w-44 rotate-12 sm:-top-14 sm:-right-16 sm:w-64" />
         <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            <p className="font-serif text-2xl text-forest italic">{event.tagline.join(" | ")}</p>
+            <p className="font-serif text-2xl text-forest italic">{series.tagline.join(" | ")}</p>
             <h1 className="mt-2 font-brush text-7xl leading-[0.9] text-forest sm:text-8xl">
               pull up a chair
             </h1>
@@ -33,34 +51,9 @@ export default function RegisterPage() {
               Registration is free. It just helps us prep enough food and know who’s coming.
               Takes about a minute.
             </p>
-
-            <div className="mt-8 flex gap-5 rounded-2xl border-2 border-forest bg-card p-4 shadow-[6px_6px_0_var(--color-forest)]">
-              <Image
-                src={poster}
-                alt=""
-                className="w-24 shrink-0 -rotate-2 rounded-sm shadow-md sm:w-28"
-                sizes="112px"
-                placeholder="blur"
-              />
-              <dl className="space-y-2 text-[0.95rem] leading-snug">
-                <div>
-                  <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">When</dt>
-                  <dd>
-                    {eventDateLong()}
-                    <br />
-                    {eventTimeRange()}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-heading text-xs tracking-widest text-red uppercase">Where</dt>
-                  <dd>
-                    {event.venue.name}, {event.venue.level}
-                    <br />
-                    {event.venue.address}
-                  </dd>
-                </div>
-              </dl>
-            </div>
+            <Suspense fallback={<CardSkeleton />}>
+              <EditionCard searchParams={searchParams} />
+            </Suspense>
           </aside>
 
           <section
@@ -68,20 +61,135 @@ export default function RegisterPage() {
             className="rounded-3xl border-2 border-forest/15 bg-card/90 p-6 shadow-[0_24px_60px_-30px_rgb(31_64_41/0.45)] sm:p-10"
           >
             <Suspense fallback={<FormSkeleton />}>
-              <RegistrationGate />
+              <RegistrationGate searchParams={searchParams} />
             </Suspense>
           </section>
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter cta={false} />
     </>
   );
 }
 
-async function RegistrationGate() {
-  await connection();
+type Target =
+  | { kind: "unavailable" }
+  | { kind: "error" }
+  | { kind: "open"; edition: Edition; availability: Exclude<Availability, { state: "closed" }> }
+  | {
+      kind: "not-open";
+      /** The edition asked for, or the one coming up. */
+      edition: Edition | null;
+      /** A ?edition= link to a date that doesn't exist (or isn't public). */
+      unknown: boolean;
+      /** Another edition people can sign up for instead. */
+      alternative: Edition | null;
+      /** The next edition whose sign-ups open later. */
+      opening: Edition | null;
+      now: Date;
+    };
 
-  if (!isStoreConfigured()) {
+/**
+ * Which edition this visit registers for. One uncached read per request,
+ * shared by the card and the form, so the two always agree.
+ */
+const resolveTarget = cache(async (requested: string): Promise<Target> => {
+  if (!isStoreConfigured()) return { kind: "unavailable" };
+  try {
+    const editions = await getStore().listEditions();
+    const now = new Date();
+    const open = registrable(editions, now);
+    const asked = requested
+      ? editions.find((e) => e.slug === requested && e.status !== "draft")
+      : undefined;
+    const edition = requested ? asked : open[0];
+    if (edition && isRegistrationOpen(edition, now)) {
+      const availability = await getAvailability(edition, now);
+      if (availability.state !== "closed") return { kind: "open", edition, availability };
+    }
+    return {
+      kind: "not-open",
+      unknown: Boolean(requested) && !asked,
+      edition: requested ? (asked ?? null) : featured(editions, now),
+      alternative: open.find((e) => e.slug !== asked?.slug) ?? null,
+      opening: nextOpening(editions, now),
+      now,
+    };
+  } catch (error) {
+    console.error("Couldn't load registration", error);
+    return { kind: "error" };
+  }
+});
+
+async function target(searchParams: PageProps<"/register">["searchParams"]) {
+  await connection();
+  const { edition } = await searchParams;
+  return resolveTarget(typeof edition === "string" ? edition : "");
+}
+
+async function EditionCard({ searchParams }: Pick<PageProps<"/register">, "searchParams">) {
+  const result = await target(searchParams);
+  const edition =
+    result.kind === "open"
+      ? result.edition
+      : result.kind === "not-open"
+        ? result.unknown
+          ? (result.alternative ?? result.opening)
+          : (result.edition ?? result.opening)
+        : null;
+  if (!edition) return null;
+  const { venue } = edition;
+
+  return (
+    <div className="mt-8 flex gap-5 rounded-2xl border-2 border-forest bg-card p-4 shadow-[6px_6px_0_var(--color-forest)]">
+      {edition.poster ? (
+        <Image
+          src={edition.poster.src}
+          width={edition.poster.width}
+          height={edition.poster.height}
+          alt=""
+          className="w-24 shrink-0 -rotate-2 self-start rounded-sm bg-forest shadow-md sm:w-28"
+          sizes="112px"
+        />
+      ) : (
+        <PosterCard
+          edition={edition}
+          compact
+          className="w-24 shrink-0 -rotate-2 self-start rounded-sm shadow-md sm:w-28"
+        />
+      )}
+      <dl className="space-y-2 text-[0.95rem] leading-snug">
+        <div>
+          <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">When</dt>
+          <dd>
+            {eventDateLong(edition)}
+            <br />
+            {eventTimeRange(edition)}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-heading text-xs tracking-widest text-red uppercase">Where</dt>
+          <dd>
+            {venue.name}
+            {venue.level && `, ${venue.level}`}
+            <br />
+            {venue.address}
+          </dd>
+        </div>
+        {edition.notice && (
+          <div>
+            <dt className="font-heading text-xs tracking-widest text-forest uppercase">Note</dt>
+            <dd>{edition.notice}</dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  );
+}
+
+async function RegistrationGate({ searchParams }: Pick<PageProps<"/register">, "searchParams">) {
+  const result = await target(searchParams);
+
+  if (result.kind === "unavailable") {
     return (
       <Notice
         title="Registration opens soon"
@@ -89,32 +197,27 @@ async function RegistrationGate() {
       />
     );
   }
-
-  let availability;
-  try {
-    availability = await getAvailability(new Date());
-  } catch (error) {
-    console.error(error);
-    // Still show the form; the action reports what went wrong on submit.
-    availability = { state: "open", spotsLeft: null } as const;
-  }
-
-  if (availability.state === "closed") {
+  if (result.kind === "error") {
     return (
       <Notice
-        title="Registration has closed"
-        body="Thanks for the love! Keep an eye out for the next Backyard."
+        title="We couldn’t load registration"
+        body="Something went wrong on our side. Please try again in a moment."
       />
     );
   }
+  if (result.kind === "not-open") return <NotOpen {...result} />;
 
+  const { edition, availability } = result;
   const waitlist = availability.state === "waitlist";
   return (
     <>
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-heading text-3xl text-forest">
-          {waitlist ? "Join the waitlist" : "Save your spot"}
-        </h2>
+        <div>
+          <h2 className="font-heading text-3xl text-forest">
+            {waitlist ? "Join the waitlist" : "Save your spot"}
+          </h2>
+          <p className="mt-1 font-semibold text-muted">for {eventDateLong(edition)}</p>
+        </div>
         <StatusPill availability={availability} />
       </div>
       {waitlist && (
@@ -125,36 +228,128 @@ async function RegistrationGate() {
       )}
       {availability.state === "open" &&
         availability.spotsLeft !== null &&
-        availability.spotsLeft <= event.maxGuests && (
+        availability.spotsLeft <= edition.maxGuests && (
           <p className="-mt-4 mb-8 rounded-xl bg-mustard/30 px-4 py-3 text-ink">
             {availability.spotsLeft === 1
               ? "If you’re bringing friends, you’ll join the waitlist."
               : `Groups of more than ${availability.spotsLeft} will join the waitlist.`}
           </p>
         )}
-      <RegistrationForm waitlist={waitlist} />
+      <RegistrationForm
+        edition={edition.slug}
+        maxGuests={edition.maxGuests}
+        organiser={series.organiser}
+        waitlist={waitlist}
+      />
     </>
   );
 }
 
-function Notice({ title, body }: { title: string; body: string }) {
+function NotOpen({
+  edition,
+  unknown,
+  alternative,
+  opening,
+  now,
+}: Extract<Target, { kind: "not-open" }>) {
+  const instead = alternative && {
+    href: `/register?edition=${alternative.slug}`,
+    label: `Register for ${eventDateShort(alternative)}`,
+  };
+  const opensLater =
+    opening &&
+    `Sign-ups for ${eventDateShort(opening)} open ${formatMoment(opening.registrationOpensAt!)}.`;
+
+  if (unknown) {
+    return (
+      <Notice
+        title="That date isn’t taking sign-ups"
+        body={
+          alternative
+            ? `Sign-ups for ${eventDateLong(alternative)} are open.`
+            : (opensLater ??
+              `Follow @${series.contact.instagram} on Instagram to hear when the next date opens.`)
+        }
+        action={instead}
+      />
+    );
+  }
+
+  if (!edition) {
+    return (
+      <Notice
+        title="No date open right now"
+        body={
+          opensLater ??
+          `Backyard happens every month. Follow @${series.contact.instagram} on Instagram to hear when the next date opens.`
+        }
+        action={instead}
+      />
+    );
+  }
+
+  const date = eventDateShort(edition);
+  switch (editionState(edition, now)) {
+    case "cancelled":
+      return (
+        <Notice
+          title={`${date} is called off`}
+          body={[edition.calledOffNote, opensLater].filter(Boolean).join(" ") || "Sorry! Keep an eye out for the next Backyard."}
+          action={instead}
+        />
+      );
+    case "upcoming":
+      return (
+        <Notice
+          title={`Sign-ups for ${date} open ${formatMoment(edition.registrationOpensAt!)}`}
+          body={`Sign-ups for ${eventDateLong(edition)} aren’t open yet. Come back then!`}
+          action={instead}
+        />
+      );
+    default:
+      return (
+        <Notice
+          title={`Registration for ${date} has closed`}
+          body={
+            instead
+              ? "Thanks for the love! The next one is open already."
+              : (opensLater ?? "Thanks for the love! Keep an eye out for the next Backyard.")
+          }
+          action={instead}
+        />
+      );
+  }
+}
+
+function Notice({
+  title,
+  body,
+  action,
+}: {
+  title: string;
+  body: string;
+  action?: { href: string; label: string } | null;
+}) {
   return (
     <div className="py-10 text-center">
       <Starburst variant={1} color="var(--color-orange)" className="mx-auto w-20" scribble={false} />
       <h2 className="mt-6 font-heading text-3xl text-forest">{title}</h2>
       <p className="mx-auto mt-3 max-w-sm text-lg text-muted">{body}</p>
-      <Link href="/" className="btn btn-outline mt-8">
-        Back to home
-      </Link>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        {action && (
+          <Link href={action.href} className="btn btn-primary">
+            {action.label} <span aria-hidden="true">→</span>
+          </Link>
+        )}
+        <Link href="/" className="btn btn-outline">
+          Back to home
+        </Link>
+      </div>
     </div>
   );
 }
 
-function StatusPill({
-  availability,
-}: {
-  availability: { state: "open"; spotsLeft: number | null } | { state: "waitlist" };
-}) {
+function StatusPill({ availability }: { availability: Exclude<Availability, { state: "closed" }> }) {
   if (availability.state === "waitlist") {
     return (
       <span className="rounded-full bg-mustard px-3 py-1 text-sm font-bold text-forest-deep">
@@ -174,6 +369,10 @@ function StatusPill({
           : "Registration open"}
     </span>
   );
+}
+
+function CardSkeleton() {
+  return <div className="mt-8 h-40 animate-pulse rounded-2xl bg-forest/10" aria-hidden="true" />;
 }
 
 function FormSkeleton() {

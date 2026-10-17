@@ -1,5 +1,6 @@
-import { event } from "@/content/event";
+import type { NextRequest } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
+import { adminFocus } from "@/lib/editions/select";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
 
 const COLUMNS: [string, (r: Registration) => string | number | boolean | null][] = [
@@ -25,11 +26,19 @@ function cell(value: string | number | boolean | null): string {
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-export async function GET() {
+/** `/admin/export?edition=<slug>`; without it, the dashboard's default date. */
+export async function GET(request: NextRequest) {
   if (!(await isAdmin())) {
     return new Response("Unauthorized", { status: 401 });
   }
-  const rows = await getStore().list(event.slug);
+  const store = getStore();
+  const editions = await store.listEditions();
+  const requested = request.nextUrl.searchParams.get("edition");
+  const edition = requested
+    ? editions.find((e) => e.slug === requested)
+    : adminFocus(editions, new Date());
+  if (!edition) return new Response("No such date", { status: 404 });
+  const rows = await store.list(edition.slug);
   const csv = [
     COLUMNS.map(([name]) => name).join(","),
     ...rows.map((r) => COLUMNS.map(([, get]) => cell(get(r))).join(",")),
@@ -38,7 +47,7 @@ export async function GET() {
   return new Response(`﻿${csv}\r\n`, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="backyard-${event.slug}.csv"`,
+      "Content-Disposition": `attachment; filename="backyard-${edition.slug}.csv"`,
       "Cache-Control": "no-store",
     },
   });

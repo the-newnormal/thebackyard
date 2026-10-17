@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { faqs } from "@/content/copy";
-import { event } from "@/content/event";
+import { series } from "@/content/series";
+import type { PublicSchedule } from "@/lib/editions/public";
+import { eventDateShort, formatMoment } from "@/lib/format";
 import { Starburst } from "../shapes";
+
+const ctaClass =
+  "bg-cream text-red shadow-[4px_4px_0_var(--color-rust)] hover:bg-mustard hover:text-forest-deep";
 
 const linkClass = "font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion";
 
@@ -49,15 +54,16 @@ function ContactAnswer({ email, instagram }: { email: string; instagram: string 
   );
 }
 
-export function Faq() {
-  const { email, instagram } = event.contact;
+/** `soloOnly`: the next date allows no friends, so answers that mention them change. */
+export function Faq({ soloOnly = false }: { soloOnly?: boolean }) {
+  const { email, instagram } = series.contact;
   return (
     <section id="faq" className="mx-auto max-w-3xl px-4 py-24 sm:px-6 sm:py-32">
       <h2 className="font-brush text-7xl leading-none text-forest sm:text-8xl">good to know</h2>
       <div className="mt-10 divide-y-2 divide-dashed divide-forest/20 border-y-2 border-dashed border-forest/20">
         {faqs.map((faq) => (
           <FaqItem key={faq.q} q={faq.q}>
-            {faq.a}
+            {soloOnly && "aSolo" in faq ? faq.aSolo : faq.a}
           </FaqItem>
         ))}
         {(email || instagram) && (
@@ -70,7 +76,13 @@ export function Faq() {
   );
 }
 
-export function FinalCta() {
+/** Signs people up for the open date; otherwise says what's next and points to Instagram. */
+export function FinalCta({
+  schedule: { openFor, nextOpening, featured },
+}: {
+  schedule: Pick<PublicSchedule, "openFor" | "nextOpening" | "featured">;
+}) {
+  const { instagram } = series.contact;
   return (
     <section className="relative isolate overflow-hidden bg-red px-4 py-24 text-center text-cream sm:py-28">
       <Starburst
@@ -87,12 +99,31 @@ export function FinalCta() {
       <h2 className="mt-2 font-brush text-[clamp(4rem,13vw,9rem)] leading-[0.9]">
         see you in the backyard
       </h2>
-      <Link
-        href="/register"
-        className="btn mt-10 bg-cream px-8 py-4 text-lg text-red shadow-[4px_4px_0_var(--color-rust)] hover:bg-mustard hover:text-forest-deep"
-      >
-        Register for free <span aria-hidden="true">→</span>
-      </Link>
+      {openFor ? (
+        <Link
+          href={`/register?edition=${openFor.slug}`}
+          className={`btn mt-10 px-8 py-4 text-lg ${ctaClass}`}
+        >
+          Register for {eventDateShort(openFor)} <span aria-hidden="true">→</span>
+        </Link>
+      ) : (
+        <>
+          {nextOpening && (
+            <p className="mt-6 text-lg font-semibold">
+              Sign-ups for {eventDateShort(nextOpening)} open{" "}
+              {formatMoment(nextOpening.registrationOpensAt!)}.
+            </p>
+          )}
+          <a
+            href={`https://instagram.com/${instagram}`}
+            target="_blank"
+            rel="noreferrer"
+            className={`btn mt-8 px-8 py-4 text-lg ${ctaClass}`}
+          >
+            Follow @{instagram} for {featured || nextOpening ? "updates" : "the next date"}
+          </a>
+        </>
+      )}
     </section>
   );
 }
