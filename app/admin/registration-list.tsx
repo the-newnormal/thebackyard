@@ -169,7 +169,7 @@ function Row({ registration: r, allowPromote }: { registration: Registration; al
         {r.status === "waitlist" && allowPromote && (
           <StatusButton code={r.code} status="confirmed" label="Give a spot" />
         )}
-        {r.status === "cancelled" ? (
+        {r.status === "cancelled" && allowPromote ? (
           <form action={restoreRegistration}>
             <input type="hidden" name="code" value={r.code} />
             <button
@@ -179,7 +179,7 @@ function Row({ registration: r, allowPromote }: { registration: Registration; al
               Restore
             </button>
           </form>
-        ) : (
+        ) : r.status !== "cancelled" ? (
           <form action={setStatus}>
             <input type="hidden" name="code" value={r.code} />
             <input type="hidden" name="status" value="cancelled" />
@@ -190,7 +190,7 @@ function Row({ registration: r, allowPromote }: { registration: Registration; al
               Cancel
             </ConfirmButton>
           </form>
-        )}
+        ) : null}
         <form action={deleteRegistration}>
           <input type="hidden" name="code" value={r.code} />
           <ConfirmButton

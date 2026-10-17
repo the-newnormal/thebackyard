@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 import { FIRST_EDITION_SEED } from "@/content/series";
 import { dayClash, sameDayEdition, slugFor } from "../editions/plan";
-import { isRegistrationOpen } from "../editions/select";
+import { hasEnded, isRegistrationOpen } from "../editions/select";
 import type { Edition, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
 import {
@@ -190,7 +190,8 @@ export function createFileStore(): RegistrationStore {
         if (index === -1) return null;
         const slug = rows[index].eventSlug;
         const edition = (await loadEditions()).find((e) => e.slug === slug);
-        const capacity = edition ? edition.capacity : null;
+        if (!edition || edition.status === "cancelled" || hasEnded(edition, new Date())) return null;
+        const capacity = edition.capacity;
         const status = placement(
           partySize(rows[index]),
           {

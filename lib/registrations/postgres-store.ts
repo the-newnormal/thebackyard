@@ -428,10 +428,11 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         await tx`select pg_advisory_xact_lock(hashtext(${found.event_slug}))`;
         const [row] = await tx<Row[]>`select * from registrations where code = ${code}`;
         if (!row || row.status !== "cancelled") return null;
-        const [edition] = await tx<Pick<EditionRow, "capacity">[]>`
-          select capacity from editions where slug = ${row.event_slug}
+        const [edition] = await tx<Pick<EditionRow, "capacity" | "status" | "ends_at">[]>`
+          select capacity, status, ends_at from editions where slug = ${row.event_slug}
         `;
-        const capacity = edition ? edition.capacity : null;
+        if (!edition || edition.status === "cancelled" || new Date() >= edition.ends_at) return null;
+        const capacity = edition.capacity;
         const [{ used, waiting }] = await tx<{ used: number; waiting: number }[]>`
           select
             coalesce(sum(1 + guests) filter (where status = 'confirmed'), 0)::int as used,

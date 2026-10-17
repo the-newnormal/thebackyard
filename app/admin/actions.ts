@@ -84,7 +84,13 @@ export async function restoreRegistration(formData: FormData) {
   await requireAdmin();
   const code = codeFrom(formData);
   if (!code) return;
-  await getStore().restore(code);
+  const store = getStore();
+  const registration = await store.getByCode(code);
+  if (!registration) return;
+  const edition = await store.getEdition(registration.eventSlug);
+  // A cancelled or ended date must not regain confirmed guests.
+  if (!edition || edition.status === "cancelled" || hasEnded(edition, new Date())) return;
+  await store.restore(code);
   refresh();
 }
 
