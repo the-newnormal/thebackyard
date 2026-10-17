@@ -5,6 +5,7 @@ import {
   useActionState,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -151,7 +152,7 @@ function stepsFor(values: Values, verifyPhone: boolean): StepKey[] {
 
 function phoneOf(values: Values) {
   const country = COUNTRIES.find((c) => c.name === values.phoneCountry) ?? COUNTRIES[0];
-  const composed = composePhone(country.code, values.phoneLocal);
+  const composed = composePhone(country.code, values.phoneLocal, country.digits);
   const normalized = normalizePhone(composed);
   const display = /^\d{8}$/.test(normalized)
     ? `+65 ${normalized.slice(0, 4)} ${normalized.slice(4)}`
@@ -286,6 +287,23 @@ export function RegistrationFlow({
   const [phoneBusy, startPhoneWork] = useTransition();
   const phoneInput = useRef<HTMLInputElement>(null);
   const pendingPick = useRef(0);
+  const birthdateInput = useRef<HTMLInputElement>(null);
+  /** Digits before the caret, while editing the birthdate somewhere other than the end. */
+  const birthdateCaret = useRef<number | null>(null);
+
+  // Reformatting the birthdate would put the caret at the end; put it back by
+  // the digit it was next to, so typing over a day or month carries on there.
+  useLayoutEffect(() => {
+    const input = birthdateInput.current;
+    const digits = birthdateCaret.current;
+    birthdateCaret.current = null;
+    if (!input || digits === null) return;
+    let at = 0;
+    for (let seen = 0; at < input.value.length && seen < digits; at++) {
+      if (/\d/.test(input.value[at])) seen++;
+    }
+    input.setSelectionRange(at, at);
+  });
 
   const [, submitAction, submitting] = useActionState(
     async (prev: RegisterState, formData: FormData) => {
@@ -344,6 +362,8 @@ export function RegistrationFlow({
   }
 
   function update(patch: Partial<Values>) {
+    // An edit after a tap (e.g. "Others" for race) cancels the move it started.
+    window.clearTimeout(pendingPick.current);
     setValues((v) => ({ ...v, ...patch }));
     setErrors((e) => ({ ...e, [step]: undefined }));
   }
@@ -450,8 +470,9 @@ export function RegistrationFlow({
   function resume() {
     if (!saved) return;
     const list = stepsFor(saved.values, verifyPhone);
-    let to = list.includes(saved.step) ? saved.step : list[0];
-    if (to === "code") to = "phone";
+    // A code is only typed right after it's sent.
+    const want = saved.step === "code" ? "phone" : saved.step;
+    const to = list.includes(want) ? want : list[0];
     setValues(saved.values);
     setVerified(saved.verified ?? null);
     setResumeSettled(true);
@@ -465,6 +486,10 @@ export function RegistrationFlow({
     } catch {
       // Nothing to forget.
     }
+    // Answers carried over from another date are still in memory.
+    setValues(EMPTY);
+    setVerified(null);
+    setCode("");
     setResumeSettled(true);
   }
 
@@ -622,15 +647,24 @@ export function RegistrationFlow({
             {banner}
             <input
               {...field}
+              ref={birthdateInput}
               autoFocus
               inputMode="numeric"
               autoComplete="bday"
               enterKeyHint="next"
               value={values.birthdate}
               onChange={(e) => {
-                const raw = e.target.value;
-                // Autofill gives YYYY-MM-DD; a pasted date may skip zeros (1/5/2007).
-                const whole = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : parseBirthdate(raw);
+                // Autofill gives YYYY-MM-DD.
+                if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) {
+                  return update({ birthdate: birthdateForInput(e.target.value) });
+                }
+                // Phone keypads offer . - , or a space rather than /.
+                const raw = e.target.value.replace(/[.,\s-]/g, "/");
+                const caret = e.target.selectionStart ?? raw.length;
+                const atEnd = caret === raw.length;
+                // A date typed or pasted without zeros (1/5/2007). Only at the end,
+                // so retyping a day or month isn't read before it's finished.
+                const whole = atEnd ? parseBirthdate(raw) : null;
                 if (whole) return update({ birthdate: birthdateForInput(whole) });
                 // A slash typed after one digit: "1/" means "01".
                 const digits = raw.replace(/(^|\/)(\d)\/$/, "$10$2").replace(/\D/g, "");
@@ -638,12 +672,12 @@ export function RegistrationFlow({
                 const deletedSlash =
                   raw.length < values.birthdate.length &&
                   digits === values.birthdate.replace(/\D/g, "");
-                const at = raw.slice(0, e.target.selectionStart ?? raw.length).replace(/\D/g, "").length;
-                update({
-                  birthdate: formatBirthdateInput(
-                    deletedSlash ? digits.slice(0, Math.max(0, at - 1)) + digits.slice(at) : digits,
-                  ),
-                });
+                const before = raw.slice(0, caret).replace(/\D/g, "").length;
+                const kept = deletedSlash
+                  ? digits.slice(0, Math.max(0, before - 1)) + digits.slice(before)
+                  : digits;
+                birthdateCaret.current = atEnd ? null : deletedSlash ? Math.max(0, before - 1) : before;
+                update({ birthdate: formatBirthdateInput(kept) });
               }}
               placeholder="DD/MM/YYYY"
               className="field h-16 px-5 text-2xl tracking-wider tabular-nums"
