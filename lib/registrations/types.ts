@@ -101,9 +101,13 @@ export interface RegistrationStore {
   updateEdition(slug: string, patch: Partial<EditionFields>): Promise<Edition | null>;
   /** Only drafts nobody has registered for can be deleted. */
   deleteEdition(slug: string): Promise<DeleteEditionResult>;
+  /** Back to draft, only while nobody has registered; false otherwise. */
+  unpublishEdition(slug: string): Promise<boolean>;
   /** Headcounts for every edition that has registrations, keyed by slug. */
   editionStats(): Promise<Record<string, EditionStats>>;
   putPoster(poster: StoredPoster): Promise<void>;
+  /** Deletes a poster no edition shows any more. */
+  deletePosterIfUnused(id: string): Promise<void>;
   getPoster(id: string): Promise<StoredPoster | null>;
 }
 

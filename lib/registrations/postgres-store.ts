@@ -66,6 +66,7 @@ type EditionRow = {
   poster_width: number | null;
   poster_height: number | null;
   notice: string | null;
+  called_off_note: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -91,6 +92,7 @@ const toEdition = (row: EditionRow): Edition => ({
       ? { src: row.poster_src, width: row.poster_width, height: row.poster_height }
       : null,
   notice: row.notice,
+  calledOffNote: row.called_off_note,
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
 });
@@ -127,6 +129,7 @@ function editionColumns(fields: Partial<EditionFields>): EditionColumns {
     columns.poster_height = fields.poster?.height ?? null;
   }
   if (fields.notice !== undefined) columns.notice = fields.notice;
+  if (fields.calledOffNote !== undefined) columns.called_off_note = fields.calledOffNote;
   return columns;
 }
 
@@ -177,17 +180,23 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     idle_timeout: 20,
     // Keeps transaction-mode poolers (Supabase, Neon pooled URLs) happy.
     prepare: false,
+    // "Already exists, skipping" from concurrent setups isn't worth logging.
+    onnotice: () => {},
   });
 
   const migrate = async () => {
     // Already set up? Skip the DDL (and its table locks) on every cold start.
-    const [existing] = await sql<{ rls: boolean | null; editions: boolean; posters: boolean }[]>`
+    // Checks for the newest table and column; update it when adding one.
+    const [existing] = await sql<{ rls: boolean | null; posters: boolean; latest: boolean }[]>`
       select
         (select relrowsecurity from pg_class where oid = to_regclass('registrations')) as rls,
-        to_regclass('editions') is not null as editions,
-        to_regclass('posters') is not null as posters
+        to_regclass('posters') is not null as posters,
+        exists (
+          select 1 from pg_attribute
+          where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
+        ) as latest
     `;
-    if (existing?.rls && existing.editions && existing.posters) return;
+    if (existing?.rls && existing.posters && existing.latest) return;
     await sql.begin(async (tx) => {
       // Concurrent cold starts would otherwise race on CREATE … IF NOT EXISTS.
       await tx`select pg_advisory_xact_lock(hashtext('backyard:migrate'))`;
@@ -239,12 +248,18 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           poster_width integer,
           poster_height integer,
           notice text check (char_length(notice) <= 500),
+          called_off_note text check (char_length(called_off_note) <= 500),
           created_at timestamptz not null default now(),
           updated_at timestamptz not null default now(),
           check (ends_at > starts_at),
           check (registration_closes_at <= ends_at),
           check (registration_opens_at is null or registration_opens_at < registration_closes_at)
         )
+      `;
+      // Added after the table first shipped (databases created before it lack it).
+      await tx`
+        alter table editions add column if not exists called_off_note text
+          check (char_length(called_off_note) <= 500)
       `;
       await tx`alter table editions enable row level security`;
       // Sign-ups made before editions existed all belong to this one.
@@ -503,6 +518,23 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       });
     },
 
+    async unpublishEdition(slug) {
+      await ready();
+      return sql.begin(async (tx) => {
+        // The same lock as register, so nobody signs up for a date as it's hidden.
+        await tx`select pg_advisory_xact_lock(hashtext(${slug}))`;
+        const [{ count }] = await tx<{ count: number }[]>`
+          select count(*)::int as count from registrations where event_slug = ${slug}
+        `;
+        if (count > 0) return false;
+        const rows = await tx`
+          update editions set status = 'draft', updated_at = now()
+          where slug = ${slug} and status = 'published' returning slug
+        `;
+        return rows.length > 0;
+      });
+    },
+
     async editionStats() {
       await ready();
       const rows = await sql<(EditionStats & { event_slug: string })[]>`
@@ -529,6 +561,14 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           bytes: Buffer.from(poster.bytes),
         })}
         on conflict (id) do nothing
+      `;
+    },
+
+    async deletePosterIfUnused(id) {
+      await ready();
+      await sql`
+        delete from posters where id = ${id}
+          and not exists (select 1 from editions where poster_src like ${`/posters/${id}.%`})
       `;
     },
 

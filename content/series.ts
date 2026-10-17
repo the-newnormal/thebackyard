@@ -44,4 +44,5 @@ export const FIRST_EDITION_SEED = {
   },
   poster: { src: "/poster.webp", width: 900, height: 1125 },
   notice: null,
+  calledOffNote: null,
 } as const;

@@ -91,9 +91,7 @@ function PrimaryAction({ schedule }: { schedule: PublicSchedule }) {
       : featuredState === "closed"
         ? "Registration has closed — see you there"
         : nextOpening
-          ? nextOpening.slug === featured?.slug
-            ? `Registration opens ${formatMoment(nextOpening.registrationOpensAt!)}`
-            : `Sign-ups for ${eventDateShort(nextOpening)} open ${formatMoment(nextOpening.registrationOpensAt!)}`
+          ? `Sign-ups for ${eventDateShort(nextOpening)} open ${formatMoment(nextOpening.registrationOpensAt!)}`
           : null;
 
   if (status) {

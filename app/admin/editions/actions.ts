@@ -5,8 +5,10 @@ import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-auth";
 import { editionFormSchema } from "@/lib/editions/schema";
-import { hasEnded } from "@/lib/editions/select";
+import { sgtParts } from "@/lib/editions/plan";
+import { editionState, hasEnded, isRegistrationOpen } from "@/lib/editions/select";
 import type { EditionFields, StoredPoster } from "@/lib/editions/types";
+import { eventDateShort } from "@/lib/format";
 import { getStore } from "@/lib/registrations";
 
 // Every change here shows on the homepage straight away: the public schedule
@@ -55,25 +57,58 @@ export async function saveEdition(
 
   const store = getStore();
   const slug = slugFrom(formData);
-  if (slug) {
-    const updated = await store.updateEdition(slug, parsed.data);
-    if (!updated) return { message: "That date no longer exists.", values };
-    updateTag("editions");
-    return { saved: true, message: "Saved. Passes and the homepage show the changes now." };
-  }
-
-  const publish = formData.get("intent") === "publish";
-  if (publish && new Date(parsed.data.startsAt) <= new Date()) {
+  const editions = await store.listEditions();
+  const existing = slug ? editions.find((e) => e.slug === slug) : undefined;
+  if (slug && !existing) return { message: "That date no longer exists.", values };
+  // Saving a form loaded before, say, "Close sign-ups now" would quietly undo it.
+  if (existing && formData.get("version") !== existing.updatedAt) {
     return {
-      message: "That date is in the past. Save it as a draft, or pick a later date.",
-      fieldErrors: { date: ["In the past"] },
+      message:
+        "This date changed after you opened this page (maybe sign-ups were closed or reopened). Reload the page to see the latest, then make your change again.",
       values,
     };
+  }
+  const publish = existing ? existing.status !== "draft" : formData.get("intent") === "publish";
+  const fail = (message: string, field: string, error: string): EditionFormState => ({
+    message,
+    fieldErrors: { [field]: [error] },
+    values,
+  });
+
+  // Two dates on one day would split the guest list in two.
+  const { date } = sgtParts(parsed.data.startsAt);
+  const clash = editions.find(
+    (e) => e.slug !== slug && e.status !== "cancelled" && sgtParts(e.startsAt).date === date,
+  );
+  if (clash) {
+    return fail(
+      `There’s already a Backyard on ${eventDateShort(clash)}. Edit that one instead, or pick another day.`,
+      "date",
+      "Already taken",
+    );
+  }
+  // Publishing (or moving a published date) into the past would only confuse people.
+  const moved = !existing || existing.startsAt !== parsed.data.startsAt;
+  if (publish && moved && new Date(parsed.data.startsAt) <= new Date()) {
+    return fail(
+      existing
+        ? "That date is in the past. Pick a later one."
+        : "That date is in the past. Save it as a draft, or pick a later date.",
+      "date",
+      "In the past",
+    );
+  }
+
+  if (existing) {
+    await store.updateEdition(existing.slug, parsed.data);
+    updateTag("editions");
+    return { saved: true, message: "Saved. Passes and the homepage show the changes now." };
   }
   const created = await store.createEdition({
     ...parsed.data,
     status: publish ? "published" : "draft",
     poster: null,
+    calledOffNote: null,
   });
   updateTag("editions");
   redirect(`/admin/editions/${created.slug}?saved=${publish ? "published" : "draft"}`);
@@ -88,44 +123,49 @@ export async function setEditionStatus(formData: FormData) {
   const to = String(formData.get("status"));
   const now = new Date();
 
+  if (to === "draft" && edition.status === "published") {
+    // Only while nobody has signed up (checked under the sign-up lock); once
+    // people have passes, call it off instead so they find out.
+    if (await store.unpublishEdition(edition.slug)) updateTag("editions");
+    return;
+  }
+
   let patch: Partial<EditionFields> | null = null;
   if (to === "published" && edition.status === "draft") {
-    // Publishing a date that's already passed would only confuse people.
     if (new Date(edition.startsAt) > now) patch = { status: "published" };
   } else if (to === "published" && edition.status === "cancelled") {
-    // The note was about calling it off.
-    patch = { status: "published", notice: null };
-  } else if (to === "draft" && edition.status === "published") {
-    // Once people have passes, call it off instead, so they find out.
-    const stats = (await store.editionStats())[edition.slug];
-    if (!stats?.registrations) patch = { status: "draft" };
+    patch = { status: "published", calledOffNote: null };
   } else if (to === "cancelled" && edition.status === "published" && !hasEnded(edition, now)) {
-    const notice = String(formData.get("notice") ?? "").trim().slice(0, 500);
-    patch = { status: "cancelled", notice: notice || edition.notice };
+    const note = String(formData.get("calledOffNote") ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 500);
+    patch = { status: "cancelled", calledOffNote: note || null };
   }
   if (!patch) return;
   await store.updateEdition(edition.slug, patch);
   updateTag("editions");
 }
 
-/** "Close sign-ups now", or reopen them until the start (or the end, once it's started). */
+/**
+ * "Close sign-ups now" while they're open, or "Reopen sign-ups" (until the
+ * start) after they've closed. Neither applies once the event has started, or
+ * before sign-ups have opened: change those times in the form instead.
+ */
 export async function setRegistrationWindow(formData: FormData) {
   await requireAdmin();
   const store = getStore();
   const edition = await store.getEdition(slugFrom(formData));
+  if (!edition) return;
   const now = new Date();
-  if (!edition || edition.status !== "published" || hasEnded(edition, now)) return;
-
-  const closes =
-    formData.get("mode") === "close"
-      ? now
-      : new Date(new Date(edition.startsAt) > now ? edition.startsAt : edition.endsAt);
-  const opens = edition.registrationOpensAt && new Date(edition.registrationOpensAt);
-  await store.updateEdition(edition.slug, {
-    registrationClosesAt: closes.toISOString(),
-    // Opening must come before closing; an opening still ahead no longer applies.
-    ...(opens && opens >= closes ? { registrationOpensAt: null } : {}),
-  });
+  const mode = formData.get("mode");
+  if (mode === "close" && isRegistrationOpen(edition, now)) {
+    await store.updateEdition(edition.slug, { registrationClosesAt: now.toISOString() });
+  } else if (mode === "reopen" && editionState(edition, now) === "closed") {
+    await store.updateEdition(edition.slug, { registrationClosesAt: edition.startsAt });
+  } else {
+    return;
+  }
   updateTag("editions");
 }
 
@@ -158,8 +198,15 @@ export async function uploadPoster(formData: FormData): Promise<{ error?: string
   const edition = await store.getEdition(slugFrom(formData));
   if (!edition) return { error: "That date no longer exists." };
 
+  // A replaced or removed poster is deleted, unless another date uses it.
+  const previous = /^\/posters\/([0-9a-f]{32})\./.exec(edition.poster?.src ?? "")?.[1];
+  const cleanUp = async () => {
+    if (previous) await store.deletePosterIfUnused(previous);
+  };
+
   if (formData.get("intent") === "remove") {
     await store.updateEdition(edition.slug, { poster: null });
+    await cleanUp();
     updateTag("editions");
     return {};
   }
@@ -175,12 +222,13 @@ export async function uploadPoster(formData: FormData): Promise<{ error?: string
     return { error: "That image is too small to use as a poster." };
   }
 
-  // Named by content, so the URL can be cached forever.
+  // Named by content, so a URL always shows the same image.
   const id = createHash("sha256").update(bytes).digest("hex").slice(0, 32);
   await store.putPoster({ id, contentType: kind.type, width, height, bytes });
   await store.updateEdition(edition.slug, {
     poster: { src: `/posters/${id}.${kind.ext}`, width, height },
   });
+  if (previous !== id) await cleanUp();
   updateTag("editions");
   return {};
 }

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { requireAdmin } from "@/lib/admin-auth";
-import { adminFocus, editionState, hasEnded, isRegistrationOpen } from "@/lib/editions/select";
+import { adminFocus, editionState, isRegistrationOpen } from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured } from "@/lib/email";
 import { eventDateLong, eventDateShort, eventTimeRange } from "@/lib/format";
@@ -104,7 +104,16 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
           <h1 className="font-heading text-3xl text-forest">{eventDateLong(edition)}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-muted">
             {eventTimeRange(edition)} · {edition.venue.name}
-            <EditionBadge edition={edition} now={now} />
+            <EditionBadge
+              edition={edition}
+              now={now}
+              stats={{
+                registrations: registrations.length,
+                confirmed: people(confirmed),
+                waitlist: people(waitlist),
+                checkedIn: people(checkedIn),
+              }}
+            />
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -222,12 +231,13 @@ function EditionSwitcher({
   );
 }
 
-/** Close sign-ups early, or open them again until the start. */
+/**
+ * Close sign-ups early while they're open, or reopen them (until the start)
+ * after closing. Not shown before sign-ups open or once the event has started.
+ */
 function WindowButton({ edition, now }: { edition: Edition; now: Date }) {
-  if (edition.status !== "published" || hasEnded(edition, now)) return null;
-  const opensLater =
-    edition.registrationOpensAt !== null && new Date(edition.registrationOpensAt) > now;
-  const close = isRegistrationOpen(edition, now) || opensLater;
+  const close = isRegistrationOpen(edition, now);
+  if (!close && editionState(edition, now) !== "closed") return null;
   return (
     <form action={setRegistrationWindow}>
       <input type="hidden" name="slug" value={edition.slug} />
@@ -236,7 +246,7 @@ function WindowButton({ edition, now }: { edition: Edition; now: Date }) {
         confirm={
           close
             ? "Close sign-ups now? New people won’t be able to register."
-            : "Reopen sign-ups until the start time?"
+            : `Reopen sign-ups until ${eventTimeRange(edition).split("–")[0]} on ${eventDateShort(edition)}?`
         }
         className="btn btn-outline px-4 py-2 text-sm"
       >

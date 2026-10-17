@@ -66,7 +66,7 @@ export default function RegisterPage({ searchParams }: PageProps<"/register">) {
           </section>
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter cta={false} />
     </>
   );
 }
@@ -79,6 +79,8 @@ type Target =
       kind: "not-open";
       /** The edition asked for, or the one coming up. */
       edition: Edition | null;
+      /** A ?edition= link to a date that doesn't exist (or isn't public). */
+      unknown: boolean;
       /** Another edition people can sign up for instead. */
       alternative: Edition | null;
       /** The next edition whose sign-ups open later. */
@@ -99,14 +101,15 @@ const resolveTarget = cache(async (requested: string): Promise<Target> => {
     const asked = requested
       ? editions.find((e) => e.slug === requested && e.status !== "draft")
       : undefined;
-    const edition = asked ?? open[0];
+    const edition = requested ? asked : open[0];
     if (edition && isRegistrationOpen(edition, now)) {
       const availability = await getAvailability(edition, now);
       if (availability.state !== "closed") return { kind: "open", edition, availability };
     }
     return {
       kind: "not-open",
-      edition: asked ?? featured(editions, now),
+      unknown: Boolean(requested) && !asked,
+      edition: requested ? (asked ?? null) : featured(editions, now),
       alternative: open.find((e) => e.slug !== asked?.slug) ?? null,
       opening: nextOpening(editions, now),
       now,
@@ -242,6 +245,7 @@ async function RegistrationGate({ searchParams }: Pick<PageProps<"/register">, "
 
 function NotOpen({
   edition,
+  unknown,
   alternative,
   opening,
   now,
@@ -253,6 +257,21 @@ function NotOpen({
   const opensLater =
     opening &&
     `Sign-ups for ${eventDateShort(opening)} open ${formatMoment(opening.registrationOpensAt!)}.`;
+
+  if (unknown) {
+    return (
+      <Notice
+        title="That date isn’t taking sign-ups"
+        body={
+          alternative
+            ? `Sign-ups for ${eventDateLong(alternative)} are open.`
+            : (opensLater ??
+              `Follow @${series.contact.instagram} on Instagram to hear when the next date opens.`)
+        }
+        action={instead}
+      />
+    );
+  }
 
   if (!edition) {
     return (
@@ -273,7 +292,7 @@ function NotOpen({
       return (
         <Notice
           title={`${date} is called off`}
-          body={edition.notice ?? opensLater ?? "Sorry! Keep an eye out for the next Backyard."}
+          body={[edition.calledOffNote, opensLater].filter(Boolean).join(" ") || "Sorry! Keep an eye out for the next Backyard."}
           action={instead}
         />
       );

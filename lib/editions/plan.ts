@@ -121,34 +121,41 @@ export function toFormValues(edition: Edition): EditionFormValues {
 }
 
 /**
- * Defaults for "Plan next month": same slot next month, same times, venue and
- * limits. Sign-ups open when the source edition's close (so people at the
- * BBQ can sign up for the next one). The poster and notice are specific to
- * one date, so they're left out.
+ * Defaults for "Plan next month": the same slot in the next month that
+ * doesn't have a date yet (`taken`: Singapore dates already planned), with
+ * the same times, venue and limits. Sign-ups open when the source edition's
+ * close, so people at the BBQ can sign up for the next one, and close at the
+ * start. The poster and notes are specific to one date, so they're left out.
  */
-export function planDefaults(source: Edition | null, now: Date): EditionFormValues {
+export function planDefaults(
+  source: Edition | null,
+  now: Date,
+  taken: Set<string> = new Set(),
+): EditionFormValues {
   const template = source ?? {
     ...FIRST_EDITION_SEED,
     venue: { ...FIRST_EDITION_SEED.venue },
     poster: null,
+    calledOffNote: null,
     createdAt: FIRST_EDITION_SEED.startsAt,
     updatedAt: FIRST_EDITION_SEED.startsAt,
   };
   const values = toFormValues(template);
 
   let date = nextMonthDate(values.date);
-  while (new Date(sgtInstant(date, values.startTime)) <= now) date = nextMonthDate(date);
+  while (taken.has(date) || new Date(sgtInstant(date, values.startTime)) <= now) {
+    date = nextMonthDate(date);
+  }
 
-  const startsAt = sgtInstant(date, values.startTime);
-  const closeOffset =
-    new Date(template.registrationClosesAt).getTime() - new Date(template.startsAt).getTime();
-  const opensAt = source && new Date(source.registrationClosesAt) > now ? sgtLocal(source.registrationClosesAt) : "";
+  const opensAt =
+    source && new Date(source.registrationClosesAt) > now ? sgtLocal(source.registrationClosesAt) : "";
 
   return {
     ...values,
     date,
     opensAt,
-    closesAt: sgtLocal(new Date(new Date(startsAt).getTime() + closeOffset).toISOString()),
+    // At the start, not copied: the source may have been closed early by hand.
+    closesAt: `${date}T${values.startTime}`,
     notice: "",
   };
 }

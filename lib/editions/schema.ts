@@ -56,7 +56,7 @@ export const editionFormSchema = z
     ),
     notice: optional(500, "The note"),
   })
-  .transform((v, ctx): Omit<EditionFields, "status" | "poster"> => {
+  .transform((v, ctx): Omit<EditionFields, "status" | "poster" | "calledOffNote"> => {
     const startsAt = sgtInstant(v.date, v.startTime);
     const endsAt = sgtInstant(v.date, v.endTime);
     const registrationOpensAt = v.opensAt ? localInstant(v.opensAt) : null;

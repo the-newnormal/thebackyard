@@ -12,20 +12,20 @@ export default async function Home() {
   const schedule = await getPublicSchedule();
   return (
     <>
-      <SiteHeader />
+      <SiteHeader cta={Boolean(schedule.openFor)} />
       <Announcements schedule={schedule} />
       <main className="flex-1">
         <Hero schedule={schedule} />
         <Marquee />
-        <Details edition={schedule.featured} />
+        <Details edition={schedule.featured} openFor={schedule.openFor} />
         <WhyBackyard />
         <WhyBbq />
         <OurModel />
         <MoreThan />
         <Faq />
-        <FinalCta />
+        <FinalCta openFor={schedule.openFor} />
       </main>
-      <SiteFooter />
+      <SiteFooter cta={Boolean(schedule.openFor)} />
     </>
   );
 }
@@ -38,7 +38,7 @@ function Announcements({ schedule: { calledOff, featured } }: { schedule: Public
       {calledOff && (
         <p className="bg-red px-4 py-3 text-center font-semibold text-cream">
           {eventDateShort(calledOff)} is called off.
-          {calledOff.notice && ` ${calledOff.notice}`}{" "}
+          {calledOff.calledOffNote && ` ${calledOff.calledOffNote}`}{" "}
           {featured
             ? `Next one: ${eventDateShort(featured)}.`
             : "We’ll announce the next date soon."}

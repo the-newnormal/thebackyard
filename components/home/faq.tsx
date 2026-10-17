@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { faqs } from "@/content/copy";
 import { series } from "@/content/series";
+import type { Edition } from "@/lib/editions/types";
+import { eventDateShort } from "@/lib/format";
 import { Starburst } from "../shapes";
+
+const ctaClass =
+  "bg-cream text-red shadow-[4px_4px_0_var(--color-rust)] hover:bg-mustard hover:text-forest-deep";
 
 const linkClass = "font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion";
 
@@ -70,7 +75,9 @@ export function Faq() {
   );
 }
 
-export function FinalCta() {
+/** `openFor`: the date taking sign-ups now; without one, point to Instagram. */
+export function FinalCta({ openFor }: { openFor: Edition | null }) {
+  const { instagram } = series.contact;
   return (
     <section className="relative isolate overflow-hidden bg-red px-4 py-24 text-center text-cream sm:py-28">
       <Starburst
@@ -87,12 +94,20 @@ export function FinalCta() {
       <h2 className="mt-2 font-brush text-[clamp(4rem,13vw,9rem)] leading-[0.9]">
         see you in the backyard
       </h2>
-      <Link
-        href="/register"
-        className="btn mt-10 bg-cream px-8 py-4 text-lg text-red shadow-[4px_4px_0_var(--color-rust)] hover:bg-mustard hover:text-forest-deep"
-      >
-        Register for free <span aria-hidden="true">→</span>
-      </Link>
+      {openFor ? (
+        <Link href="/register" className={`btn mt-10 px-8 py-4 text-lg ${ctaClass}`}>
+          Register for {eventDateShort(openFor)} <span aria-hidden="true">→</span>
+        </Link>
+      ) : (
+        <a
+          href={`https://instagram.com/${instagram}`}
+          target="_blank"
+          rel="noreferrer"
+          className={`btn mt-10 px-8 py-4 text-lg ${ctaClass}`}
+        >
+          Follow @{instagram} for the next date
+        </a>
+      )}
     </section>
   );
 }

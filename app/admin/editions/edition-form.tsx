@@ -59,7 +59,16 @@ const inWords = (date: string) =>
  * Create a date (`slug` empty: "Save as draft" / "Save & publish") or edit
  * one ("Save changes"). Times are Singapore time.
  */
-export function EditionForm({ slug, initial }: { slug?: string; initial: EditionFormValues }) {
+export function EditionForm({
+  slug,
+  version,
+  initial,
+}: {
+  slug?: string;
+  /** The edition's updatedAt when the page loaded, so a stale tab can't undo newer changes. */
+  version?: string;
+  initial: EditionFormValues;
+}) {
   const [state, action, pending] = useActionState<EditionFormState, FormData>(saveEdition, {});
   const v = (state.values ?? initial) as EditionFormValues;
   const e = state.fieldErrors ?? {};
@@ -81,6 +90,7 @@ export function EditionForm({ slug, initial }: { slug?: string; initial: Edition
   return (
     <form action={action} className="space-y-6">
       {slug && <input type="hidden" name="slug" value={slug} />}
+      {version && <input type="hidden" name="version" value={version} />}
 
       {state.message && (
         <div

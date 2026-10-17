@@ -3,7 +3,7 @@ import Link from "next/link";
 import { series } from "@/content/series";
 import { googleCalendarUrl } from "@/lib/calendar";
 import type { Edition } from "@/lib/editions/types";
-import { eventDateLong, eventTimeRange, venueMapsUrl } from "@/lib/format";
+import { eventDateLong, eventDateShort, eventTimeRange, venueMapsUrl } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { PosterCard } from "./poster-card";
 
@@ -37,7 +37,14 @@ function posterAlt(edition: Edition): string {
 }
 
 /** "The night": the featured edition's poster and details, or the monthly rhythm between dates. */
-export function Details({ edition }: { edition: Edition | null }) {
+export function Details({
+  edition,
+  openFor,
+}: {
+  edition: Edition | null;
+  /** The date taking sign-ups now, if any (not always the one shown). */
+  openFor: Edition | null;
+}) {
   const venue = edition?.venue;
   return (
     <section id="details" className="mx-auto max-w-6xl px-4 py-24 sm:px-6 sm:py-32">
@@ -125,7 +132,7 @@ export function Details({ edition }: { edition: Edition | null }) {
             </Row>
             <Row label="What" color="text-forest">
               {series.tagline.join(", ").replace(/^./, (c) => c.toUpperCase())}. Come as
-              you are — bring a friend or come solo.
+              you are{edition?.maxGuests === 0 ? "." : " — bring a friend or come solo."}
             </Row>
             <Row label="Cost" color="text-vermilion">
               Backyard is free for everyone, with no fixed fee and no expectation of payment.
@@ -135,9 +142,14 @@ export function Details({ edition }: { edition: Edition | null }) {
             </Row>
           </dl>
 
-          <Link href="/register" className="btn btn-primary mt-8 px-7 py-4 text-lg">
-            Register for free <span aria-hidden="true">→</span>
-          </Link>
+          {openFor && (
+            <Link href="/register" className="btn btn-primary mt-8 px-7 py-4 text-lg">
+              {openFor.slug === edition?.slug
+                ? "Register for free"
+                : `Register for ${eventDateShort(openFor)}`}{" "}
+              <span aria-hidden="true">→</span>
+            </Link>
+          )}
         </div>
       </div>
     </section>

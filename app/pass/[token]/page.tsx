@@ -8,13 +8,20 @@ import { Splat, Starburst } from "@/components/shapes";
 import { SiteHeader } from "@/components/site-header";
 import { series } from "@/content/series";
 import { googleCalendarUrl } from "@/lib/calendar";
-import { editionState, isRegistrationOpen, registrable, type EditionState } from "@/lib/editions/select";
+import {
+  editionState,
+  isRegistrationOpen,
+  nextOpening,
+  registrable,
+  type EditionState,
+} from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import {
   eventDateLong,
   eventDateShort,
   eventTimeRange,
   firstName,
+  formatMoment,
   venueMapsUrl,
 } from "@/lib/format";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
@@ -69,6 +76,10 @@ async function Pass({
     edition && isRegistrationOpen(edition, now)
       ? edition
       : (open.find((e) => e.slug !== registration.eventSlug) ?? null);
+  const upcoming = nextOpening(
+    editions.filter((e) => e.slug !== registration.eventSlug),
+    now,
+  );
 
   return (
     <div className="mx-auto max-w-xl">
@@ -85,7 +96,13 @@ async function Pass({
           release this spot and register again.
         </p>
       )}
-      <Ticket registration={registration} edition={edition} state={state} next={next} />
+      <Ticket
+        registration={registration}
+        edition={edition}
+        state={state}
+        next={next}
+        upcoming={upcoming}
+      />
     </div>
   );
 }
@@ -95,6 +112,7 @@ function Ticket({
   edition,
   state,
   next,
+  upcoming,
 }: {
   registration: Registration;
   /** null only if the edition row is missing; the pass still shows the code. */
@@ -102,6 +120,8 @@ function Ticket({
   state: EditionState | null;
   /** Where "register" links should go: this edition if still open, else the next open one. */
   next: Edition | null;
+  /** Another date whose sign-ups open later, if none is open now. */
+  upcoming: Edition | null;
 }) {
   const { status } = registration;
   const party = partySize(registration);
@@ -129,6 +149,9 @@ function Ticket({
       {next.slug === edition?.slug ? "Register again" : `Register for ${eventDateShort(next)}`}
     </Link>
   );
+  const opensLater =
+    upcoming &&
+    `Sign-ups for ${eventDateShort(upcoming)} open ${formatMoment(upcoming.registrationOpensAt!)}.`;
 
   return (
     <article className="overflow-hidden rounded-3xl border-2 border-forest bg-card shadow-[10px_10px_0_var(--color-forest)]">
@@ -153,8 +176,8 @@ function Ticket({
         </h1>
         {calledOff && (
           <p className="mx-auto mt-3 max-w-sm text-muted">
-            {edition?.notice ?? "Sorry — we’ve had to call this one off."}{" "}
-            {nextLink && <>The next one’s open: {nextLink}.</>}
+            {edition?.calledOffNote ?? "Sorry — we’ve had to call this one off."}{" "}
+            {nextLink ? <>The next one’s open: {nextLink}.</> : opensLater}
           </p>
         )}
         {!calledOff && edition?.notice && !over && (
@@ -169,13 +192,18 @@ function Ticket({
         )}
         {!calledOff && status === "cancelled" && (
           <p className="mx-auto mt-3 max-w-sm text-muted">
-            This registration was cancelled.{" "}
-            {nextLink ? (
-              <>
-                Changed your mind? {nextLink}.
-              </>
+            {next && next.slug === edition?.slug ? (
+              <>This registration was cancelled. Changed your mind? {nextLink}.</>
             ) : (
-              "Keep an eye out for the next Backyard."
+              <>
+                This registration was cancelled
+                {edition && `, and sign-ups for ${eventDateShort(edition)} have closed`}.{" "}
+                {nextLink ? (
+                  <>Coming next time? {nextLink}.</>
+                ) : (
+                  (opensLater ?? "Keep an eye out for the next Backyard.")
+                )}
+              </>
             )}
           </p>
         )}
@@ -183,6 +211,8 @@ function Ticket({
           <p className="mx-auto mt-3 max-w-sm text-muted">
             {nextLink ? (
               <>Backyard is back every month. {nextLink}.</>
+            ) : opensLater ? (
+              <>Backyard is back every month. {opensLater}</>
             ) : (
               <>
                 Backyard is back every month. Follow{" "}

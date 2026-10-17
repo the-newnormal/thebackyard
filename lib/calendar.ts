@@ -8,7 +8,7 @@ const icsDate = (date: string | Date) =>
   new Date(date).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
 const escape = (text: string) =>
-  text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r\n?|\n/g, "\\n");
 
 /** Lines over 75 octets are folded onto continuation lines starting with a space. */
 function fold(line: string): string {
@@ -30,7 +30,13 @@ function fold(line: string): string {
 }
 
 const details = (edition: Edition, url: string) =>
-  [series.tagline.join(" | "), edition.notice, url].filter(Boolean).join("\n");
+  [
+    series.tagline.join(" | "),
+    edition.status === "cancelled" ? (edition.calledOffNote ?? "Called off.") : edition.notice,
+    url,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
 const title = (edition: Edition) =>
   edition.status === "cancelled" ? `Called off: ${series.name}` : series.name;

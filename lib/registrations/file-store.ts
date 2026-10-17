@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FIRST_EDITION_SEED } from "@/content/series";
 import { slugFor } from "../editions/plan";
@@ -67,7 +67,9 @@ function seedEdition(): Edition {
 
 const byStart = (a: Edition, b: Edition) => a.startsAt.localeCompare(b.startsAt);
 const loadEditions = async () =>
-  (await readJson<Edition[]>(EDITIONS, () => [seedEdition()])).sort(byStart);
+  (await readJson<Edition[]>(EDITIONS, () => [seedEdition()]))
+    .map((e) => ({ ...e, calledOffNote: e.calledOffNote ?? null }))
+    .sort(byStart);
 const saveEditions = (editions: Edition[]) => writeJson(EDITIONS, editions);
 
 const confirmedHeadcount = (rows: Registration[], slug: string) =>
@@ -241,6 +243,17 @@ export function createFileStore(): RegistrationStore {
         return "deleted";
       }),
 
+    unpublishEdition: (slug) =>
+      exclusive(async () => {
+        if ((await load()).some((r) => r.eventSlug === slug)) return false;
+        const editions = await loadEditions();
+        const index = editions.findIndex((e) => e.slug === slug && e.status === "published");
+        if (index === -1) return false;
+        editions[index] = { ...editions[index], status: "draft", updatedAt: new Date().toISOString() };
+        await saveEditions(editions);
+        return true;
+      }),
+
     async editionStats() {
       const stats: Record<string, EditionStats> = {};
       for (const r of await load()) {
@@ -258,6 +271,14 @@ export function createFileStore(): RegistrationStore {
       await writeFile(path.join(POSTERS, `${meta.id}.bin`), bytes);
       await writeJson(path.join(POSTERS, `${meta.id}.json`), meta);
     },
+
+    deletePosterIfUnused: (id) =>
+      exclusive(async () => {
+        const used = (await loadEditions()).some((e) => e.poster?.src.startsWith(`/posters/${id}.`));
+        if (used) return;
+        await rm(path.join(POSTERS, `${id}.bin`), { force: true });
+        await rm(path.join(POSTERS, `${id}.json`), { force: true });
+      }),
 
     async getPoster(id) {
       const meta = await readJson<Omit<StoredPoster, "bytes"> | null>(

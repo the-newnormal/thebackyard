@@ -3,7 +3,8 @@ import { brand } from "@/content/copy";
 import { series } from "@/content/series";
 import { Starburst } from "./shapes";
 
-export function SiteFooter() {
+/** `cta`: show the "Save your spot" link (only while a date takes sign-ups). */
+export function SiteFooter({ cta = true }: { cta?: boolean }) {
   const { email, instagram } = series.contact;
   return (
     <footer className="relative overflow-hidden bg-forest-deep text-cream">
@@ -42,9 +43,11 @@ export function SiteFooter() {
       <div className="relative border-t border-cream/15">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-cream/60 sm:px-6">
           <p>Hosted by {series.organiser}</p>
-          <Link href="/register" className="hover:text-lime">
-            Save your spot →
-          </Link>
+          {cta && (
+            <Link href="/register" className="hover:text-lime">
+              Save your spot →
+            </Link>
+          )}
         </div>
       </div>
     </footer>

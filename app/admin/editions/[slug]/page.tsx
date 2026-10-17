@@ -36,8 +36,7 @@ export default function EditionPage({ params, searchParams }: PageProps<"/admin/
   );
 }
 
-const CALLED_OFF_NOTE =
-  "The PSI forecast is in the unhealthy range, so we’re calling this one off. Stay safe, see you next month!";
+const CALLED_OFF_NOTE = "The PSI forecast is in the unhealthy range. Stay safe!";
 
 async function EditEdition({
   params,
@@ -52,6 +51,8 @@ async function EditEdition({
   if (!edition) notFound();
   const now = new Date();
   const registrations = stats[slug]?.registrations ?? 0;
+  const confirmed = stats[slug]?.confirmed ?? 0;
+  const waiting = stats[slug]?.waitlist ?? 0;
 
   return (
     <>
@@ -61,7 +62,7 @@ async function EditEdition({
       </div>
       <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <Link href={`/admin?edition=${slug}`} className="font-semibold text-forest underline underline-offset-4">
-          Guest list ({registrations})
+          Guest list ({confirmed} coming{waiting ? `, ${waiting} waiting` : ""})
         </Link>
         <span className="text-muted">ID: {slug}</span>
       </p>
@@ -85,14 +86,15 @@ async function EditEdition({
       </section>
 
       <h2 className="mt-10 mb-4 font-heading text-2xl text-forest">Details</h2>
-      {registrations > 0 && (
+      {confirmed + waiting > 0 && (
         <p className="mb-6 rounded-2xl bg-mustard/30 px-5 py-4 text-ink">
-          {registrations} {registrations === 1 ? "person has" : "people have"} registered. Their
-          passes update automatically, but if you change the date, time or venue, let them know
-          too: their emails are in the CSV on the guest list.
+          {confirmed + waiting} {confirmed + waiting === 1 ? "person is" : "people are"} signed
+          up (friends and waitlist included). Their passes update automatically, but if you
+          change the date, time or venue, let them know too: their emails are in the CSV on the
+          guest list.
         </p>
       )}
-      <EditionForm slug={slug} initial={toFormValues(edition)} />
+      <EditionForm slug={slug} version={edition.updatedAt} initial={toFormValues(edition)} />
     </>
   );
 }
@@ -169,11 +171,14 @@ function StatusPanel({
           Called off. Guests see this on the homepage and their passes; their registrations are
           kept.
         </p>
+        {edition.calledOffNote && (
+          <p className="rounded-xl bg-red/5 px-4 py-3 text-ink">“{edition.calledOffNote}”</p>
+        )}
         {!ended &&
           button(
             "published",
             "It’s back on",
-            "Put this date back on? Guests' passes go back to normal and the called-off note is removed.",
+            "Put this date back on? Guests' passes go back to normal.",
           )}
       </div>
     );
@@ -191,11 +196,11 @@ function StatusPanel({
           <label className="block">
             <span className="mb-2 block font-bold text-red">Call it off (haze, weather…)</span>
             <textarea
-              name="notice"
+              name="calledOffNote"
               rows={2}
               maxLength={500}
               className="field resize-y"
-              defaultValue={edition.notice ?? CALLED_OFF_NOTE}
+              defaultValue={CALLED_OFF_NOTE}
             />
           </label>
           <ConfirmButton

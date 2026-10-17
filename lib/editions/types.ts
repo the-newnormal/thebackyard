@@ -36,6 +36,8 @@ export interface Edition {
   poster: Poster | null;
   /** Shown on the homepage, registration page, passes and emails. */
   notice: string | null;
+  /** Why it was called off; set while the status is "cancelled". */
+  calledOffNote: string | null;
   createdAt: string;
   updatedAt: string;
 }
