@@ -11,6 +11,9 @@ export function normalizePhone(input: string): string {
  */
 export const PHONE_PATTERN = /^(\+(?!65)\d{8,15}|[3689]\d{7})$/;
 
+/** Normalised SG numbers are the 8 digits alone. */
+export const isSingaporeNumber = (normalized: string) => /^\d{8}$/.test(normalized);
+
 /**
  * Joins a country code and a number typed the local way, e.g. "+60" +
  * "012-345 6789". `maxDigits` is the longest number in that country without

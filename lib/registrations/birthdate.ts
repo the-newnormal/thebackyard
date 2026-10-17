@@ -1,13 +1,7 @@
-// Birthdates are typed as DD/MM/YYYY and stored as YYYY-MM-DD. Shared by the
-// form and the server, so neither needs a date library.
+// Birthdates are entered as day, month and year, and stored as YYYY-MM-DD.
+// Shared by the form and the server, so neither needs a date library.
 
 const EARLIEST_YEAR = 1920;
-
-/** Groups typed digits as DD/MM/YYYY, e.g. "0105" → "01/05". */
-export function formatBirthdateInput(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 8);
-  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)].filter(Boolean).join("/");
-}
 
 /** "01/05/2007" → "2007-05-01", or null unless it's a real calendar date. */
 export function parseBirthdate(input: string): string | null {
@@ -16,12 +10,6 @@ export function parseBirthdate(input: string): string | null {
   const [day, month, year] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   return isRealDate(iso) ? iso : null;
-}
-
-/** "2007-05-01" → "01/05/2007" */
-export function birthdateForInput(iso: string): string {
-  const [year, month, day] = iso.split("-");
-  return year && month && day ? `${day}/${month}/${year}` : "";
 }
 
 function isRealDate(iso: string): boolean {

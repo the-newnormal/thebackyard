@@ -5,7 +5,6 @@ import {
   useActionState,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +18,7 @@ import {
   type OtherDate,
   type RegisterState,
 } from "@/app/register/actions";
+import { pdpaConsent } from "@/content/copy";
 import { series } from "@/content/series";
 import {
   MAIN_RACES,
@@ -28,18 +28,25 @@ import {
   schoolsFor,
   SEXES,
 } from "@/content/registration-options";
+import { birthdateProblem, dateIn, parseBirthdate } from "@/lib/registrations/birthdate";
+import { EMAIL_PATTERN } from "@/lib/registrations/email";
 import {
-  birthdateForInput,
-  birthdateProblem,
-  dateIn,
-  formatBirthdateInput,
-  parseBirthdate,
-} from "@/lib/registrations/birthdate";
-import { composePhone, normalizePhone, PHONE_PATTERN } from "@/lib/registrations/phone";
+  composePhone,
+  isSingaporeNumber,
+  normalizePhone,
+  PHONE_PATTERN,
+} from "@/lib/registrations/phone";
 import { DIETARY_OPTIONS } from "@/lib/registrations/types";
 import { Starburst } from "../shapes";
 import { COUNTRIES } from "./countries";
-import { ChoiceGrid, CountryPicker, ErrorText, SearchList } from "./fields";
+import {
+  BirthdateFields,
+  ChoiceGrid,
+  CountryPicker,
+  ErrorText,
+  LINK,
+  SearchList,
+} from "./fields";
 import { progressKey } from "./progress";
 
 // One question per screen, in the order of the Registration Questions sheet:
@@ -94,14 +101,20 @@ const EMPTY: Values = {
   marketingOptIn: "",
 };
 
-/** A number confirmed with a texted code, and the server's proof of it. */
-type Verified = { phone: string; token: string };
+/**
+ * The server's word on a number and email: confirmed with a texted code, or
+ * let through unconfirmed because Twilio couldn't be reached. Never saved.
+ */
+type Verified = { phone: string; email: string; token: string };
 
-type Progress = { step: StepKey; values: Values; verified: Verified | null; savedAt: number };
+type Progress = { step: StepKey; values: Values; savedAt: number };
 
-const RESUME_WITHIN_MS = 7 * 24 * 60 * 60 * 1000;
+// Unfinished answers stay in this browser for a few days at most, in case
+// it's a shared one.
+const RESUME_WITHIN_MS = 3 * 24 * 60 * 60 * 1000;
 const RESEND_AFTER_SECONDS = 30;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Taps this soon after a question appears belong to the one before it. */
+const TAP_SETTLE_MS = 400;
 
 const KICKERS: Record<StepKey, string> = {
   name: "About you",
@@ -145,10 +158,17 @@ function stepsFor(values: Values, verifyPhone: boolean): StepKey[] {
     "dietary",
     "email",
     "phone",
-    ...(verifyPhone ? (["code"] as const) : []),
+    ...(verifyPhone && phoneOf(values).country.code === "+65" ? (["code"] as const) : []),
     "pdpa",
   ];
 }
+
+/** Only SG numbers get a texted code. */
+const needsCode = (values: Values, verifyPhone: boolean) =>
+  verifyPhone && isSingaporeNumber(phoneOf(values).normalized);
+
+const hasAnswers = (values: Values) =>
+  (Object.keys(EMPTY) as (keyof Values)[]).some((key) => values[key] !== EMPTY[key]);
 
 function phoneOf(values: Values) {
   const country = COUNTRIES.find((c) => c.name === values.phoneCountry) ?? COUNTRIES[0];
@@ -160,11 +180,34 @@ function phoneOf(values: Values) {
   return { country, composed, normalized, display };
 }
 
-/** True while `verified` covers the number now entered, with time to spare. */
+/** True while `verified` covers the number and email now entered, with time to spare. */
 function isVerified(values: Values, verified: Verified | null): boolean {
   if (!verified || verified.phone !== phoneOf(values).normalized) return false;
+  if (verified.email !== values.email.trim().toLowerCase()) return false;
   const expires = Number(verified.token.split(".")[0]) * 1000;
   return expires - Date.now() > 10 * 60 * 1000;
+}
+
+/** The line under each question, if it has one. */
+function asideFor(step: StepKey, values: Values, verifyPhone: boolean): string | undefined {
+  switch (step) {
+    case "birthdate":
+      return "we won’t tell anyone your age";
+    case "occupation":
+      return "pick the closest one";
+    case "school":
+      return "start typing to find it";
+    case "dietary":
+      return "we’ll make sure there’s something good on the grill for you";
+    case "email":
+      return "your pass goes here";
+    case "phone":
+      return verifyPhone && phoneOf(values).country.code === "+65"
+        ? "we’ll text you a code to check it’s you"
+        : "so we can reach you on the day";
+    case "code":
+      return `we sent a code to ${phoneOf(values).display}`;
+  }
 }
 
 function validate(step: StepKey, values: Values): string | null {
@@ -184,7 +227,9 @@ function validate(step: StepKey, values: Values): string | null {
       return values.dietaryNotes.trim().length > 300 ? "Keep it under 300 characters" : null;
     case "email": {
       const email = values.email.trim();
-      return EMAIL.test(email) && email.length <= 200 ? null : "That email doesn’t look right";
+      return EMAIL_PATTERN.test(email) && email.length <= 200
+        ? null
+        : "That email doesn’t look right";
     }
     case "phone":
       return PHONE_PATTERN.test(phoneOf(values).normalized)
@@ -214,7 +259,9 @@ function readSaved(key: string): string | null {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const { savedAt } = JSON.parse(raw) as Partial<Progress>;
-    return typeof savedAt === "number" && Date.now() - savedAt < RESUME_WITHIN_MS ? raw : null;
+    if (typeof savedAt === "number" && Date.now() - savedAt < RESUME_WITHIN_MS) return raw;
+    localStorage.removeItem(key);
+    return null;
   } catch {
     return null;
   }
@@ -228,7 +275,7 @@ function parseProgress(raw: string | null): Progress | null {
     for (const key of Object.keys(EMPTY) as (keyof Values)[]) {
       if (typeof saved.values?.[key] === "string") values[key] = saved.values[key];
     }
-    return { ...saved, values };
+    return { step: saved.step, values, savedAt: saved.savedAt };
   } catch {
     return null;
   }
@@ -268,6 +315,7 @@ export function RegistrationFlow({
     step: StepKey;
     text: string;
     link?: OtherDate;
+    tone?: "info";
   } | null>(null);
 
   // A link to another date only changes the query, so this component stays.
@@ -286,33 +334,13 @@ export function RegistrationFlow({
   const [now, setNow] = useState(0);
   const [phoneBusy, startPhoneWork] = useTransition();
   const phoneInput = useRef<HTMLInputElement>(null);
-  const pendingPick = useRef(0);
-  const birthdateInput = useRef<HTMLInputElement>(null);
-  /** Digits before the caret, while editing the birthdate somewhere other than the end. */
-  const birthdateCaret = useRef<number | null>(null);
-
-  // Reformatting the birthdate would put the caret at the end; put it back by
-  // the digit it was next to, so typing over a day or month carries on there.
-  useLayoutEffect(() => {
-    const input = birthdateInput.current;
-    const digits = birthdateCaret.current;
-    birthdateCaret.current = null;
-    if (!input || digits === null) return;
-    let at = 0;
-    for (let seen = 0; at < input.value.length && seen < digits; at++) {
-      if (/\d/.test(input.value[at])) seen++;
-    }
-    input.setSelectionRange(at, at);
-  });
-
-  const [, submitAction, submitting] = useActionState(
-    async (prev: RegisterState, formData: FormData) => {
-      const result = await register(prev, formData);
-      showServerErrors(result);
-      return result;
-    },
-    {},
-  );
+  const codeInput = useRef<HTMLInputElement>(null);
+  const startButton = useRef<HTMLButtonElement>(null);
+  const pendingAdvance = useRef<number | undefined>(undefined);
+  // A new question ignores taps briefly, so the second half of a double-tap
+  // on the last one can't answer it unseen.
+  const [settling, setSettling] = useState(false);
+  const settleTimer = useRef<number | undefined>(undefined);
 
   const steps = stepsFor(values, verifyPhone);
   const index = Math.max(0, steps.indexOf(step));
@@ -320,13 +348,14 @@ export function RegistrationFlow({
 
   useEffect(() => {
     if (!started) return;
-    const progress: Progress = { step, values, verified, savedAt: Date.now() };
+    const progress: Progress = { step, values, savedAt: Date.now() };
     try {
-      localStorage.setItem(key, JSON.stringify(progress));
+      if (hasAnswers(values)) localStorage.setItem(key, JSON.stringify(progress));
+      else localStorage.removeItem(key);
     } catch {
       // Private mode or storage full: they just can't resume later.
     }
-  }, [key, started, step, values, verified]);
+  }, [key, started, step, values]);
 
   useEffect(() => {
     if (started) window.scrollTo({ top: 0 });
@@ -341,15 +370,21 @@ export function RegistrationFlow({
   const resendIn = Math.max(0, Math.ceil(RESEND_AFTER_SECONDS - (now - codeSentAt) / 1000));
 
   function go(to: StepKey, dir: 1 | -1) {
+    window.clearTimeout(pendingAdvance.current);
+    window.clearTimeout(settleTimer.current);
+    setSettling(true);
+    settleTimer.current = window.setTimeout(() => setSettling(false), TAP_SETTLE_MS);
     setDirection(dir);
     setStep(to);
     setNotice(null);
   }
 
-  function next(from: StepKey = step, vals: Values = values) {
+  function next(from: StepKey = step, vals: Values = values, ver: Verified | null = verified) {
     const list = stepsFor(vals, verifyPhone);
     let to = list[list.indexOf(from) + 1];
-    if (to === "code" && isVerified(vals, verified)) to = list[list.indexOf("code") + 1];
+    if (to === "code" && (!needsCode(vals, verifyPhone) || isVerified(vals, ver))) {
+      to = list[list.indexOf("code") + 1];
+    }
     if (to) go(to, 1);
   }
 
@@ -363,7 +398,7 @@ export function RegistrationFlow({
 
   function update(patch: Partial<Values>) {
     // An edit after a tap (e.g. "Others" for race) cancels the move it started.
-    window.clearTimeout(pendingPick.current);
+    window.clearTimeout(pendingAdvance.current);
     setValues((v) => ({ ...v, ...patch }));
     setErrors((e) => ({ ...e, [step]: undefined }));
   }
@@ -374,16 +409,9 @@ export function RegistrationFlow({
     const vals = { ...values, ...patch };
     setValues(vals);
     setErrors((e) => ({ ...e, [from]: undefined }));
-    const list = stepsFor(vals, verifyPhone);
-    const to = list[list.indexOf(from) + 1];
-    // A second tap before we move on replaces the first, and with it where we go.
-    window.clearTimeout(pendingPick.current);
-    pendingPick.current = window.setTimeout(() => {
-      setDirection(1);
-      setNotice(null);
-      // Ignore a second tap that lands after we've already moved on.
-      setStep((current) => (current === from ? to : current));
-    }, 220);
+    // A change of mind before we move on replaces the first answer, and where it leads.
+    window.clearTimeout(pendingAdvance.current);
+    pendingAdvance.current = window.setTimeout(() => next(from, vals), 220);
   }
 
   function submitStep(e: React.FormEvent) {
@@ -393,17 +421,32 @@ export function RegistrationFlow({
       setErrors((er) => ({ ...er, [step]: problem }));
       return;
     }
-    if (step === "phone" && verifyPhone && !isVerified(values, verified)) {
+    if (step === "phone" && needsCode(values, verifyPhone) && !isVerified(values, verified)) {
       sendCode();
       return;
     }
     next();
   }
 
+  /** Saves the server's verdict on the number and moves past the code step. */
+  function passCodeStep(token: string, skipped: boolean | undefined) {
+    const ver = { phone: phone.normalized, email: values.email.trim().toLowerCase(), token };
+    setVerified(ver);
+    next("code", values, ver);
+    if (skipped) {
+      const list = stepsFor(values, verifyPhone);
+      setNotice({
+        step: list[list.indexOf("code") + 1],
+        text: "We couldn’t text you a code just now, so we’ve skipped that check.",
+        tone: "info",
+      });
+    }
+  }
+
   function sendCode() {
     const from = step;
     startPhoneWork(async () => {
-      const result = await sendPhoneCode(phone.composed, edition);
+      const result = await sendPhoneCode(phone.composed, values.email, edition);
       if (result.link) {
         setNotice({ step: from, text: result.error ?? "", link: result.link });
         return;
@@ -412,24 +455,26 @@ export function RegistrationFlow({
         setErrors((er) => ({ ...er, [from]: result.error }));
         return;
       }
+      if (result.token) return passCodeStep(result.token, result.skipped);
       const sentAt = Date.now();
       setCodeSentAt(sentAt);
       setNow(sentAt);
       setCode("");
       setErrors((er) => ({ ...er, code: undefined }));
-      if (from !== "code") go("code", 1);
+      if (from === "code") codeInput.current?.focus();
+      else go("code", 1);
     });
   }
 
   function checkCode(entered: string) {
     startPhoneWork(async () => {
-      const result = await checkPhoneCode(phone.composed, entered);
+      const result = await checkPhoneCode(phone.composed, values.email, entered);
       if (result.error) {
         setErrors((er) => ({ ...er, code: result.error }));
         return;
       }
-      if (result.token) setVerified({ phone: phone.normalized, token: result.token });
-      next("code");
+      if (result.token) passCodeStep(result.token, result.skipped);
+      else next("code");
     });
   }
 
@@ -450,7 +495,7 @@ export function RegistrationFlow({
 
   /** Keeps the answers for another date's form, before following a link to it. */
   function carryOver(to: string) {
-    const progress: Progress = { step, values, verified, savedAt: Date.now() };
+    const progress: Progress = { step, values, savedAt: Date.now() };
     try {
       localStorage.setItem(progressKey(to), JSON.stringify(progress));
       localStorage.removeItem(key);
@@ -470,11 +515,14 @@ export function RegistrationFlow({
   function resume() {
     if (!saved) return;
     const list = stepsFor(saved.values, verifyPhone);
-    // A code is only typed right after it's sent.
-    const want = saved.step === "code" ? "phone" : saved.step;
-    const to = list.includes(want) ? want : list[0];
+    // A code is only typed right after it's sent, and a confirmed number isn't
+    // saved, so anyone past the mobile question confirms it again.
+    const savedStep = saved.step === "code" ? "phone" : saved.step;
+    let to = list.includes(savedStep) ? savedStep : list[0];
+    if (needsCode(saved.values, verifyPhone) && list.indexOf(to) > list.indexOf("phone")) {
+      to = "phone";
+    }
     setValues(saved.values);
-    setVerified(saved.verified ?? null);
     setResumeSettled(true);
     setStarted(true);
     go(to, 1);
@@ -493,11 +541,25 @@ export function RegistrationFlow({
     setResumeSettled(true);
   }
 
+  const [, submitAction, submitting] = useActionState(
+    async (prev: RegisterState, formData: FormData) => {
+      const result = await register(prev, formData);
+      showServerErrors(result);
+      return result;
+    },
+    {},
+  );
+
   if (!started) {
     return (
       <div className="relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 py-14 text-center">
         {intro}
-        <button type="button" onClick={start} className="btn btn-primary mt-9 px-10 py-4 text-xl">
+        <button
+          ref={startButton}
+          type="button"
+          onClick={start}
+          className="btn btn-primary mt-9 px-10 py-4 text-xl"
+        >
           {waitlist ? "Join the waitlist" : "Let’s go"} <span aria-hidden="true">→</span>
         </button>
         <p className="mt-4 text-muted">Takes about 2 minutes.</p>
@@ -511,6 +573,8 @@ export function RegistrationFlow({
           open={saved !== null && !resumeSettled}
           onContinue={resume}
           onStartFresh={startFresh}
+          // Closing hands focus back to whatever had it before, which was nothing.
+          onClosed={() => startButton.current?.focus()}
         />
       </div>
     );
@@ -519,15 +583,22 @@ export function RegistrationFlow({
   const error = errors[step];
   const headingId = `${step}-question`;
   const errorId = `${headingId}-error`;
+  const aside = asideFor(step, values, verifyPhone);
+  const describedBy =
+    [aside && `${headingId}-aside`, error && errorId].filter(Boolean).join(" ") || undefined;
   const field = {
     "aria-labelledby": headingId,
     "aria-invalid": error ? true : undefined,
-    "aria-describedby": error ? errorId : undefined,
+    "aria-describedby": describedBy,
   } as const;
   const banner = notice?.step === step && (
     <div
-      role="alert"
-      className="mb-6 rounded-xl border-2 border-red bg-red/10 px-4 py-3 font-semibold text-red"
+      role={notice.tone === "info" ? "status" : "alert"}
+      className={`mb-6 rounded-xl px-4 py-3 font-semibold ${
+        notice.tone === "info"
+          ? "bg-mustard/30 text-ink"
+          : "border-2 border-red bg-red/10 text-red-ink"
+      }`}
     >
       {notice.text}
       {notice.link && (
@@ -545,9 +616,11 @@ export function RegistrationFlow({
     </div>
   );
   const canGoBack = index > 0;
-  const tap = {
+  const tapProps = {
     id: headingId,
     kicker: KICKERS[step],
+    aside,
+    describedBy,
     banner,
     error,
     onBack: canGoBack ? back : undefined,
@@ -567,11 +640,12 @@ export function RegistrationFlow({
               {...field}
               autoFocus
               autoComplete="name"
+              autoCapitalize="words"
               enterKeyHint="next"
               maxLength={80}
               value={values.name}
               onChange={(e) => update({ name: e.target.value })}
-              placeholder="e.g. rachel tan"
+              placeholder="e.g. Rachel Tan"
               className="field h-16 px-5 text-2xl"
             />
             <ErrorText id={errorId}>{error}</ErrorText>
@@ -582,7 +656,7 @@ export function RegistrationFlow({
       case "residentStatus":
         return (
           <TapStep
-            {...tap}
+            {...tapProps}
             question="what’s your residency status?"
             options={RESIDENT_STATUSES}
             value={values.residentStatus}
@@ -593,7 +667,7 @@ export function RegistrationFlow({
       case "sex":
         return (
           <TapStep
-            {...tap}
+            {...tapProps}
             question="what’s your sex?"
             options={SEXES}
             columns={2}
@@ -612,6 +686,7 @@ export function RegistrationFlow({
             {banner}
             <ChoiceGrid
               labelledBy={headingId}
+              describedBy={describedBy}
               options={MAIN_RACES}
               columns={2}
               value={other ? "Others" : values.race}
@@ -641,46 +716,16 @@ export function RegistrationFlow({
       case "birthdate":
         return (
           <form onSubmit={submitStep} noValidate>
-            <Question id={headingId} kicker={KICKERS[step]} aside="we won’t tell anyone your age">
+            <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
               when were you born?
             </Question>
             {banner}
-            <input
-              {...field}
-              ref={birthdateInput}
-              autoFocus
-              inputMode="numeric"
-              autoComplete="bday"
-              enterKeyHint="next"
+            <BirthdateFields
               value={values.birthdate}
-              onChange={(e) => {
-                // Autofill gives YYYY-MM-DD.
-                if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) {
-                  return update({ birthdate: birthdateForInput(e.target.value) });
-                }
-                // Phone keypads offer . - , or a space rather than /.
-                const raw = e.target.value.replace(/[.,\s-]/g, "/");
-                const caret = e.target.selectionStart ?? raw.length;
-                const atEnd = caret === raw.length;
-                // A date typed or pasted without zeros (1/5/2007). Only at the end,
-                // so retyping a day or month isn't read before it's finished.
-                const whole = atEnd ? parseBirthdate(raw) : null;
-                if (whole) return update({ birthdate: birthdateForInput(whole) });
-                // A slash typed after one digit: "1/" means "01".
-                const digits = raw.replace(/(^|\/)(\d)\/$/, "$10$2").replace(/\D/g, "");
-                // Backspacing over a slash takes the digit before it too.
-                const deletedSlash =
-                  raw.length < values.birthdate.length &&
-                  digits === values.birthdate.replace(/\D/g, "");
-                const before = raw.slice(0, caret).replace(/\D/g, "").length;
-                const kept = deletedSlash
-                  ? digits.slice(0, Math.max(0, before - 1)) + digits.slice(before)
-                  : digits;
-                birthdateCaret.current = atEnd ? null : deletedSlash ? Math.max(0, before - 1) : before;
-                update({ birthdate: formatBirthdateInput(kept) });
-              }}
-              placeholder="DD/MM/YYYY"
-              className="field h-16 px-5 text-2xl tracking-wider tabular-nums"
+              onChange={(birthdate) => update({ birthdate })}
+              labelledBy={headingId}
+              invalid={Boolean(error)}
+              describedBy={describedBy}
             />
             <ErrorText id={errorId}>{error}</ErrorText>
             <Nav onBack={back} />
@@ -690,9 +735,8 @@ export function RegistrationFlow({
       case "occupation":
         return (
           <TapStep
-            {...tap}
+            {...tapProps}
             question="what do you do?"
-            aside="pick the closest one"
             options={OCCUPATIONS}
             columns={2}
             compact
@@ -709,20 +753,9 @@ export function RegistrationFlow({
 
       case "school": {
         const schools = schoolsFor(values.occupation) ?? [];
-        if (schools.length <= 8) {
-          return (
-            <TapStep
-            {...tap}
-              question="which school do you go to?"
-              options={schools}
-              value={values.school}
-              onPick={(v) => pick({ school: v })}
-            />
-          );
-        }
         return (
           <div>
-            <Question id={headingId} kicker={KICKERS[step]} aside="start typing to find it">
+            <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
               which school do you go to?
             </Question>
             {banner}
@@ -743,16 +776,13 @@ export function RegistrationFlow({
       case "dietary":
         return (
           <form onSubmit={submitStep} noValidate>
-            <Question
-              id={headingId}
-              kicker={KICKERS[step]}
-              aside="we’ll make sure there’s something good on the grill for you"
-            >
+            <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
               any dietary needs?
             </Question>
             {banner}
             <ChoiceGrid
               labelledBy={headingId}
+              describedBy={describedBy}
               options={DIETARY_OPTIONS}
               columns={2}
               compact
@@ -780,7 +810,7 @@ export function RegistrationFlow({
       case "email":
         return (
           <form onSubmit={submitStep} noValidate>
-            <Question id={headingId} kicker={KICKERS[step]} aside="your pass goes here">
+            <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
               what’s your email?
             </Question>
             {banner}
@@ -805,15 +835,7 @@ export function RegistrationFlow({
       case "phone":
         return (
           <form onSubmit={submitStep} noValidate>
-            <Question
-              id={headingId}
-              kicker={KICKERS[step]}
-              aside={
-                verifyPhone
-                  ? "we’ll text you a code to check it’s you"
-                  : "so we can reach you on the day"
-              }
-            >
+            <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
               what’s your mobile number?
             </Question>
             {banner}
@@ -836,15 +858,22 @@ export function RegistrationFlow({
                 maxLength={20}
                 value={values.phoneLocal}
                 onChange={(e) => update({ phoneLocal: e.target.value })}
-                placeholder="e.g. 9123 4567"
+                placeholder="9123 4567"
                 className="field h-16 min-w-0 flex-1 px-5 text-2xl tabular-nums"
               />
             </div>
+            {!isSingaporeNumber(phone.normalized) && /\d{4}/.test(values.phoneLocal) && (
+              <p className="mt-3 text-muted">
+                We’ll save it as <span className="font-semibold text-ink">{phone.composed}</span>
+              </p>
+            )}
             <ErrorText id={errorId}>{error}</ErrorText>
             <Nav
               onBack={back}
               pending={phoneBusy}
-              nextLabel={verifyPhone && !isVerifiedNow() ? "Text me a code" : "Next"}
+              nextLabel={
+                needsCode(values, verifyPhone) && !isVerifiedNow() ? "Text me a code" : "Next"
+              }
               pendingLabel="Sending…"
             />
           </form>
@@ -863,12 +892,13 @@ export function RegistrationFlow({
             }}
             noValidate
           >
-            <Question id={headingId} kicker={KICKERS[step]} aside={`we sent a code to ${phone.display}`}>
+            <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
               check your texts
             </Question>
             {banner}
             <input
               {...field}
+              ref={codeInput}
               autoFocus
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -892,16 +922,12 @@ export function RegistrationFlow({
                 type="button"
                 disabled={resendIn > 0 || phoneBusy}
                 onClick={sendCode}
-                className="font-semibold text-forest underline underline-offset-4 hover:text-orange-ink disabled:text-muted disabled:no-underline"
+                className={`${LINK} disabled:text-muted disabled:no-underline`}
               >
                 {resendIn > 0 ? `Send again in ${resendIn}s` : "Send again"}
               </button>
               {" · "}
-              <button
-                type="button"
-                onClick={back}
-                className="font-semibold text-forest underline underline-offset-4 hover:text-orange-ink"
-              >
+              <button type="button" onClick={back} className={LINK}>
                 Change number
               </button>
             </p>
@@ -925,16 +951,15 @@ export function RegistrationFlow({
               can we keep you posted?
             </Question>
             {banner}
-            <p className="-mt-3 mb-6 text-lg leading-relaxed text-ink">
-              Say yes and we’ll let you know about future Backyard events. Under the PDPA,
-              we only use your details for Backyard and never share them. You can opt out
-              anytime.
+            <p id={`${headingId}-pdpa`} className="-mt-3 mb-6 text-lg leading-relaxed text-ink">
+              {pdpaConsent}
             </p>
             <ChoiceGrid
               labelledBy={headingId}
+              describedBy={[`${headingId}-pdpa`, describedBy].filter(Boolean).join(" ")}
               options={[
-                { value: "yes", label: "Yes!" },
-                { value: "no", label: "Nope" },
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
               ]}
               columns={2}
               value={values.marketingOptIn}
@@ -943,8 +968,9 @@ export function RegistrationFlow({
             <ErrorText id={errorId}>{error}</ErrorText>
 
             <p className="mt-8 rounded-2xl bg-cream/70 p-5 text-[0.95rem] leading-snug text-ink">
-              By registering, you agree to {series.organiser} collecting and using your details
-              to manage your registration and contact you about this event.
+              By registering, you agree to {series.organiser} collecting and using your details,
+              in line with Singapore’s PDPA, to manage your registration, contact you about
+              this event, and understand who Backyard reaches.
             </p>
 
             <Answers
@@ -965,7 +991,7 @@ export function RegistrationFlow({
   }
 
   function isVerifiedNow() {
-    return verified?.phone === phone.normalized;
+    return verified?.phone === phone.normalized && verified.email === values.email.trim().toLowerCase();
   }
 
   return (
@@ -998,7 +1024,7 @@ export function RegistrationFlow({
 
       <div
         key={step}
-        className={`flex-1 pt-9 pb-14 sm:pt-14 ${direction > 0 ? "animate-step-forward" : "animate-step-back"}`}
+        className={`flex-1 pt-9 pb-14 sm:pt-14 ${direction > 0 ? "animate-step-forward" : "animate-step-back"} ${settling ? "pointer-events-none" : ""}`}
       >
         {body()}
       </div>
@@ -1012,6 +1038,7 @@ function TapStep({
   kicker,
   question,
   aside,
+  describedBy,
   banner,
   error,
   options,
@@ -1026,6 +1053,7 @@ function TapStep({
   kicker: string;
   question: string;
   aside?: string;
+  describedBy?: string;
   banner: React.ReactNode;
   error?: string;
   options: readonly string[];
@@ -1044,6 +1072,7 @@ function TapStep({
       {banner}
       <ChoiceGrid
         labelledBy={id}
+        describedBy={describedBy}
         options={options}
         columns={columns}
         compact={compact}
@@ -1084,7 +1113,11 @@ function Question({
       >
         {children}
       </h1>
-      {aside && <p className="mt-3 font-serif text-xl text-muted italic">{aside}</p>}
+      {aside && (
+        <p id={`${id}-aside`} className="mt-3 font-serif text-xl text-muted italic">
+          {aside}
+        </p>
+      )}
     </div>
   );
 }
@@ -1167,7 +1200,10 @@ function Answers({
     dietaryNotes: values.dietaryNotes,
     email: values.email,
     phone: phone.composed,
-    phoneToken: verified?.phone === phone.normalized ? verified.token : "",
+    phoneToken:
+      verified?.phone === phone.normalized && verified.email === values.email.trim().toLowerCase()
+        ? verified.token
+        : "",
     // So the server can tell this form asked for a code.
     verifyPhone: verifyPhone ? "on" : "",
     marketingOptIn: values.marketingOptIn,
@@ -1193,36 +1229,43 @@ function ResumeDialog({
   open,
   onContinue,
   onStartFresh,
+  onClosed,
 }: {
   open: boolean;
   onContinue: () => void;
   onStartFresh: () => void;
+  onClosed: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = dialog.current;
     if (open && d && !d.open) d.showModal();
-    if (!open && d?.open) d.close();
-  }, [open]);
+    if (!open && d?.open) {
+      d.close();
+      onClosed();
+    }
+  }, [open, onClosed]);
   return (
     <dialog
       ref={dialog}
       aria-labelledby="resume-title"
-      // Escape shouldn't skip the question.
-      onCancel={(e) => e.preventDefault()}
+      // Escape (which browsers don't always let us cancel) keeps their answers.
+      onCancel={(e) => {
+        e.preventDefault();
+        onContinue();
+      }}
       className="m-auto w-[min(92vw,26rem)] rounded-3xl border-2 border-forest bg-card p-7 text-center text-ink shadow-[8px_8px_0_var(--color-forest)] backdrop:bg-forest-deep/50 backdrop:backdrop-blur-sm"
     >
-      <p className="font-serif text-xl text-muted italic">welcome back</p>
-      <h2 id="resume-title" className="mt-1 font-brush text-6xl leading-none text-forest">
+      <h2 id="resume-title" className="font-brush text-6xl leading-none text-forest">
         you’re back!
       </h2>
       <p className="mt-4 text-lg">Want to pick up where you left off?</p>
-      <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row">
-        <button type="button" onClick={onStartFresh} className="btn btn-outline flex-1">
-          Start fresh
-        </button>
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row-reverse">
         <button type="button" onClick={onContinue} autoFocus className="btn btn-primary flex-1">
           Continue <span aria-hidden="true">→</span>
+        </button>
+        <button type="button" onClick={onStartFresh} className="btn btn-outline flex-1">
+          Start fresh
         </button>
       </div>
     </dialog>

@@ -171,7 +171,7 @@ function Ticket({
 
       <div className="px-6 pt-8 pb-6 text-center sm:px-10">
         <h1
-          className={`font-brush text-5xl leading-none sm:text-6xl ${active || (over && status !== "cancelled") ? "text-forest" : "text-muted"}`}
+          className={`font-brush text-5xl leading-none [overflow-wrap:anywhere] sm:text-6xl ${active || (over && status !== "cancelled") ? "text-forest" : "text-muted"}`}
         >
           {headline}
         </h1>
@@ -343,7 +343,7 @@ function Item({
   return (
     <div className={className}>
       <dt className="font-heading text-xs tracking-widest text-orange-ink uppercase">{label}</dt>
-      <dd className="mt-1 leading-snug font-semibold text-ink">{children}</dd>
+      <dd className="mt-1 leading-snug font-semibold text-ink [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }

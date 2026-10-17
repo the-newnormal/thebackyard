@@ -87,8 +87,8 @@ automatically on first use.
 ## How registration works
 
 - Everyone registers for themselves. The questions and their options come from
-  the Registration Questions sheet; students are asked for their school from the
-  list for their occupation (secondary, ITE, JC, poly or university).
+  the Registration Questions sheet; students (secondary, ITE, JC, poly or
+  university) pick their school from one A-Z list of every school.
 - One registration per email per date. Re-submitting with the same email and
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.
@@ -96,11 +96,15 @@ automatically on first use.
   closing times, checked when the form is submitted. Each form names its date,
   so a form left open past closing time is turned away instead of being moved
   to the next date.
-- With Twilio Verify set up, the mobile number is confirmed with a texted code
-  before the registration goes through, and the dashboard marks it verified.
-  Without it, numbers are only checked for format. In the Twilio console, limit
-  Verify's SMS geo permissions to the countries you expect, to keep the cost of
-  bogus sign-ups down.
+- With Twilio Verify set up, Singapore mobile numbers are confirmed with a
+  texted code before the registration goes through, and the dashboard marks them
+  verified. Numbers from other countries, and sign-ups made while Twilio can't be
+  reached, go through unverified rather than being turned away. Without Twilio,
+  numbers are only checked for format.
+- Codes only go to Singapore numbers and are rate-limited per visitor, so
+  scripted texts can't run up the bill. In the Twilio console, also set Verify's
+  SMS geo permissions to Singapore only, keep Fraud Guard on, and add a usage
+  alert.
 - Capacity counts people (registrants, plus friends added on earlier sign-ups,
   when the form still offered that). Once it's reached, new sign-ups
   join the waitlist, and while anyone is waiting, freed spots stay with the

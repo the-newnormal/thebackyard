@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { isRegistrationOpen, registrable } from "@/lib/editions/select";
@@ -7,13 +8,15 @@ import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured, sendConfirmationEmail } from "@/lib/email";
 import { eventDateShort } from "@/lib/format";
 import {
+  allowSend,
   checkVerificationCode,
   createPhoneToken,
   isPhoneVerificationEnabled,
+  readPhoneToken,
   sendVerificationCode,
-  verifyPhoneToken,
 } from "@/lib/phone-verification";
 import { getStore, StoreNotConfiguredError } from "@/lib/registrations";
+import { isSingaporeNumber } from "@/lib/registrations/phone";
 import { normalizePhone, phoneSchema, registrationSchema } from "@/lib/registrations/schema";
 
 /** A date that is taking sign-ups, offered when the one being filled in isn't. */
@@ -121,11 +124,14 @@ export async function register(
   }
 
   const answers = parsed.data;
-  const verifying = isPhoneVerificationEnabled();
+  // SG numbers are confirmed with a texted code when Twilio is set up.
+  const needsCode = isPhoneVerificationEnabled() && isSingaporeNumber(answers.phone);
   // Opened before texted codes were switched on, so it never asked for one.
-  if (verifying && formData.get("verifyPhone") !== "on") return { message: RELOAD };
-  const phoneToken = String(formData.get("phoneToken") ?? "");
-  if (verifying && !verifyPhoneToken(phoneToken, answers.phone, Date.now())) {
+  if (needsCode && formData.get("verifyPhone") !== "on") return { message: RELOAD };
+  const check = needsCode
+    ? readPhoneToken(String(formData.get("phoneToken") ?? ""), answers.phone, answers.email, Date.now())
+    : null;
+  if (needsCode && !check) {
     return {
       message: "Please confirm your mobile number with the code we text you.",
       fieldErrors: { phone: ["Confirm this number with a texted code"] },
@@ -136,7 +142,7 @@ export async function register(
     name: answers.name,
     email: answers.email,
     phone: answers.phone,
-    phoneVerified: verifying,
+    phoneVerified: check?.verified ?? false,
     residentStatus: answers.residentStatus,
     sex: answers.sex,
     race: answers.race,
@@ -180,14 +186,32 @@ export async function register(
   redirect(`/pass/${registration.passToken}?new=1`);
 }
 
+type PhoneCodeResult = {
+  error?: string;
+  /** Another date to register for, when this one stopped taking sign-ups. */
+  link?: OtherDate;
+  /** Set when the check is done, or skipped because Twilio couldn't be reached. */
+  token?: string;
+  skipped?: boolean;
+};
+
+const TOO_MANY = "That’s a lot of codes! Wait a few minutes, then try again.";
+
+/** The check couldn't happen on Twilio's side, so let them register unconfirmed. */
+const skip = (phone: string, email: string): PhoneCodeResult => ({
+  token: createPhoneToken(phone, email, false, Date.now()),
+  skipped: true,
+});
+
 /**
- * Texts a code to the number, when phone verification is switched on, while
+ * Texts a code to an SG number, when phone verification is switched on, while
  * `edition` (the date being registered for) is taking sign-ups.
  */
 export async function sendPhoneCode(
   rawPhone: string,
+  email: string,
   edition: string,
-): Promise<{ error?: string; link?: OtherDate }> {
+): Promise<PhoneCodeResult> {
   // Only forms that ask for a code call this; one opened before codes were
   // switched off would wait for a text that never comes.
   if (!isPhoneVerificationEnabled()) return { error: RELOAD };
@@ -202,6 +226,10 @@ export async function sendPhoneCode(
   }
   const phone = phoneSchema.safeParse(String(rawPhone));
   if (!phone.success) return { error: phone.error.issues[0].message };
+  if (!isSingaporeNumber(phone.data)) return { error: "We only text codes to Singapore numbers" };
+
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (!allowSend(ip, Date.now())) return { error: TOO_MANY };
 
   switch (await sendVerificationCode(phone.data)) {
     case "sent":
@@ -209,17 +237,18 @@ export async function sendPhoneCode(
     case "invalid":
       return { error: "We can’t text that number. Check it’s a mobile number." };
     case "too-many":
-      return { error: "That’s a lot of codes! Wait a few minutes, then try again." };
+      return { error: TOO_MANY };
     default:
-      return { error: "We couldn’t send a code just now. Try again in a moment." };
+      return skip(phone.data, String(email));
   }
 }
 
 /** Checks a texted code; a correct one returns a token for the registration. */
 export async function checkPhoneCode(
   rawPhone: string,
+  email: string,
   rawCode: string,
-): Promise<{ token?: string; error?: string }> {
+): Promise<PhoneCodeResult> {
   if (!isPhoneVerificationEnabled()) return {};
   const phone = phoneSchema.safeParse(String(rawPhone));
   if (!phone.success) return { error: phone.error.issues[0].message };
@@ -228,7 +257,7 @@ export async function checkPhoneCode(
 
   switch (await checkVerificationCode(phone.data, code)) {
     case "approved":
-      return { token: createPhoneToken(phone.data, Date.now()) };
+      return { token: createPhoneToken(phone.data, String(email), true, Date.now()) };
     case "wrong":
       return { error: "That code isn’t right. Check the text and try again." };
     case "expired":
@@ -236,6 +265,6 @@ export async function checkPhoneCode(
     case "too-many":
       return { error: "Too many tries. Wait a few minutes, then send a new code." };
     default:
-      return { error: "We couldn’t check that code just now. Try again in a moment." };
+      return skip(phone.data, String(email));
   }
 }

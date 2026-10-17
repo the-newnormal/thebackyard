@@ -56,6 +56,11 @@ export const moreThan = {
   body: "We aim to be more than a place to dwell or a means to gather — a hub that pulls people in, just to be. Friendships will form, people will feel welcomed and hosted, and it will grow organically.",
 };
 
+// The PDPA question on the last registration step. People answer Yes or No,
+// and can register either way.
+export const pdpaConsent =
+  "I agree for Backyard and its affiliated parties to send me marketing and communication materials including upcoming youth programmes and events via email, and to improve its planning and delivery of youth programmes and events. I understand that I can unsubscribe at any time.";
+
 export const faqs = [
   {
     q: "Is it really free?",

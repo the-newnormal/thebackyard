@@ -196,10 +196,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     onnotice: () => {},
   });
 
-  const migrate = async () => {
-    // Already up to date? Skip the DDL (and its table locks) on every cold
-    // start. Checks for the newest table and columns; update it when adding one.
-    const [existing] = await sql<{ rls: boolean | null; posters: boolean; latest: boolean }[]>`
+  // Checks for the newest table and columns; update it when adding one.
+  const upToDate = async (q: postgres.ISql) => {
+    const [existing] = await q<{ rls: boolean | null; posters: boolean; latest: boolean }[]>`
       select
         (select relrowsecurity from pg_class where oid = to_regclass('registrations')) as rls,
         to_regclass('posters') is not null as posters,
@@ -211,10 +210,17 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('registrations') and attname = 'school' and not attisdropped
         ) as latest
     `;
-    if (existing?.rls && existing.posters && existing.latest) return;
+    return Boolean(existing?.rls && existing.posters && existing.latest);
+  };
+
+  const migrate = async () => {
+    // Already up to date? Skip the DDL (and its table locks) on every cold start.
+    if (await upToDate(sql)) return;
     await sql.begin(async (tx) => {
       // Concurrent cold starts would otherwise race on CREATE … IF NOT EXISTS.
       await tx`select pg_advisory_xact_lock(hashtext('backyard:migrate'))`;
+      // Another instance may have finished it while we waited.
+      if (await upToDate(tx)) return;
       await tx`
         create table if not exists registrations (
           id bigserial primary key,
