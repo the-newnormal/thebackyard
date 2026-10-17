@@ -176,12 +176,13 @@ export async function register(
     if (samePhone && (!needsCode || check?.verified)) {
       redirect(`/pass/${registration.passToken}?existing=1`);
     }
+    // On the phone question, which drops the skipped check so a new code is sent.
     if (samePhone) {
       return {
         message: isEmailConfigured()
-          ? "This email is already registered. Check your inbox for your pass, or try again later to confirm your number by text."
-          : "This email is already registered. Try again later to confirm your number by text and get your pass back.",
-        fieldErrors: { email: ["Already registered"] },
+          ? "You’re already registered. Confirm your number with a texted code to get your pass back, or check your inbox for it."
+          : "You’re already registered. Confirm your number with a texted code to get your pass back.",
+        fieldErrors: { phone: ["Confirm this number with a texted code"] },
       };
     }
     return {
