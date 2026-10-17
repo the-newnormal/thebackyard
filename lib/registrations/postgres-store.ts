@@ -1,6 +1,6 @@
 import postgres from "postgres";
 import { FIRST_EDITION_SEED } from "@/content/series";
-import { slugFor } from "../editions/plan";
+import { sameDayEdition, slugFor } from "../editions/plan";
 import { isRegistrationOpen } from "../editions/select";
 import type { Edition, EditionFields, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
@@ -477,24 +477,29 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     async createEdition(fields) {
       await ready();
       return sql.begin(async (tx) => {
-        // Two organisers planning the same month mustn't race for one slug.
+        // Two organisers planning the same month mustn't race for one slug or day.
         await tx`select pg_advisory_xact_lock(hashtext('backyard:editions'))`;
-        const taken = await tx<{ slug: string }[]>`select slug from editions`;
-        const slug = slugFor(fields.startsAt, new Set(taken.map((r) => r.slug)));
+        const existing = (await tx<EditionRow[]>`select * from editions`).map(toEdition);
+        const clash = sameDayEdition(existing, fields.startsAt);
+        if (clash) return { kind: "date-taken" as const, edition: clash };
+        const slug = slugFor(fields.startsAt, new Set(existing.map((e) => e.slug)));
         const [row] = await tx<EditionRow[]>`
           insert into editions ${tx({ slug, ...editionColumns(fields) })} returning *
         `;
-        return toEdition(row);
+        return { kind: "created" as const, edition: toEdition(row) };
       });
     },
 
-    async updateEdition(slug, patch) {
+    async updateEdition(slug, patch, ifVersion) {
       await ready();
       const columns = editionColumns(patch);
       if (Object.keys(columns).length === 0) return this.getEdition(slug);
+      // updated_at can hold microseconds (now()); versions are milliseconds.
       const [row] = await sql<EditionRow[]>`
         update editions set ${sql({ ...columns, updated_at: new Date() })}
-        where slug = ${slug} returning *
+        where slug = ${slug}
+        ${ifVersion ? sql`and date_trunc('milliseconds', updated_at) = ${new Date(ifVersion)}` : sql``}
+        returning *
       `;
       return row ? toEdition(row) : null;
     },
@@ -504,8 +509,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       return sql.begin(async (tx) => {
         // The same lock as register, so nobody signs up mid-delete.
         await tx`select pg_advisory_xact_lock(hashtext(${slug}))`;
-        const [edition] = await tx<Pick<EditionRow, "status">[]>`
-          select status from editions where slug = ${slug}
+        const [edition] = await tx<Pick<EditionRow, "status" | "poster_src">[]>`
+          select status, poster_src from editions where slug = ${slug}
         `;
         if (!edition) return "not-found";
         if (edition.status !== "draft") return "not-draft";
@@ -514,6 +519,14 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         `;
         if (count > 0) return "has-registrations";
         await tx`delete from editions where slug = ${slug}`;
+        // Its poster too, unless another date shows the same image.
+        const posterId = /^\/posters\/([0-9a-f]{32})\./.exec(edition.poster_src ?? "")?.[1];
+        if (posterId) {
+          await tx`
+            delete from posters where id = ${posterId}
+              and not exists (select 1 from editions where poster_src like ${`/posters/${posterId}.%`})
+          `;
+        }
         return "deleted";
       });
     },

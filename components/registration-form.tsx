@@ -203,7 +203,9 @@ export function RegistrationForm({
             className="field resize-y"
             defaultValue={v.dietaryNotes}
             aria-invalid={invalid("dietaryNotes")}
-            placeholder="e.g. peanut allergy, one friend is vegetarian"
+            placeholder={
+              maxGuests > 0 ? "e.g. peanut allergy, one friend is vegetarian" : "e.g. peanut allergy"
+            }
           />
           <FieldError id="dietaryNotes-error" errors={e.dietaryNotes} />
         </div>

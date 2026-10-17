@@ -120,17 +120,27 @@ export function toFormValues(edition: Edition): EditionFormValues {
   };
 }
 
+/** Another edition already on the same Singapore day (two would split the guest list). */
+export function sameDayEdition(
+  editions: Edition[],
+  startsAt: string,
+  except?: string,
+): Edition | undefined {
+  const { date } = sgtParts(startsAt);
+  return editions.find((e) => e.slug !== except && sgtParts(e.startsAt).date === date);
+}
+
 /**
- * Defaults for "Plan next month": the same slot in the next month that
- * doesn't have a date yet (`taken`: Singapore dates already planned), with
- * the same times, venue and limits. Sign-ups open when the source edition's
- * close, so people at the BBQ can sign up for the next one, and close at the
- * start. The poster and notes are specific to one date, so they're left out.
+ * Defaults for "Plan next month": the same slot in the next month that has no
+ * date yet, with the same times, venue and limits. Sign-ups open when the
+ * date before it starts (so people at that BBQ can sign up for the next one)
+ * and close at the start. The poster and notes are specific to one date, so
+ * they're left out.
  */
 export function planDefaults(
   source: Edition | null,
   now: Date,
-  taken: Set<string> = new Set(),
+  editions: Edition[] = [],
 ): EditionFormValues {
   const template = source ?? {
     ...FIRST_EDITION_SEED,
@@ -142,18 +152,20 @@ export function planDefaults(
   };
   const values = toFormValues(template);
 
+  const months = new Set(editions.map((e) => sgtParts(e.startsAt).date.slice(0, 7)));
   let date = nextMonthDate(values.date);
-  while (taken.has(date) || new Date(sgtInstant(date, values.startTime)) <= now) {
+  while (months.has(date.slice(0, 7)) || new Date(sgtInstant(date, values.startTime)) <= now) {
     date = nextMonthDate(date);
   }
 
-  const opensAt =
-    source && new Date(source.registrationClosesAt) > now ? sgtLocal(source.registrationClosesAt) : "";
-
+  const startsAt = sgtInstant(date, values.startTime);
+  const previous = editions
+    .filter((e) => e.startsAt < startsAt)
+    .sort((a, b) => b.startsAt.localeCompare(a.startsAt))[0];
   return {
     ...values,
     date,
-    opensAt,
+    opensAt: previous && new Date(previous.startsAt) > now ? sgtLocal(previous.startsAt) : "",
     // At the start, not copied: the source may have been closed early by hand.
     closesAt: `${date}T${values.startTime}`,
     notice: "",

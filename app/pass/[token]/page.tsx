@@ -76,10 +76,7 @@ async function Pass({
     edition && isRegistrationOpen(edition, now)
       ? edition
       : (open.find((e) => e.slug !== registration.eventSlug) ?? null);
-  const upcoming = nextOpening(
-    editions.filter((e) => e.slug !== registration.eventSlug),
-    now,
-  );
+  const upcoming = nextOpening(editions, now);
 
   return (
     <div className="mx-auto max-w-xl">
@@ -120,7 +117,7 @@ function Ticket({
   state: EditionState | null;
   /** Where "register" links should go: this edition if still open, else the next open one. */
   next: Edition | null;
-  /** Another date whose sign-ups open later, if none is open now. */
+  /** The next date whose sign-ups open later (maybe this one). */
   upcoming: Edition | null;
 }) {
   const { status } = registration;
@@ -176,7 +173,7 @@ function Ticket({
         </h1>
         {calledOff && (
           <p className="mx-auto mt-3 max-w-sm text-muted">
-            {edition?.calledOffNote ?? "Sorry — we’ve had to call this one off."}{" "}
+            {edition?.calledOffNote ?? "Sorry about this one."}{" "}
             {nextLink ? <>The next one’s open: {nextLink}.</> : opensLater}
           </p>
         )}
@@ -194,6 +191,8 @@ function Ticket({
           <p className="mx-auto mt-3 max-w-sm text-muted">
             {next && next.slug === edition?.slug ? (
               <>This registration was cancelled. Changed your mind? {nextLink}.</>
+            ) : state === "upcoming" ? (
+              <>This registration was cancelled. {opensLater}</>
             ) : (
               <>
                 This registration was cancelled

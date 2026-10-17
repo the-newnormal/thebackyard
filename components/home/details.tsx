@@ -143,7 +143,10 @@ export function Details({
           </dl>
 
           {openFor && (
-            <Link href="/register" className="btn btn-primary mt-8 px-7 py-4 text-lg">
+            <Link
+              href={`/register?edition=${openFor.slug}`}
+              className="btn btn-primary mt-8 px-7 py-4 text-lg"
+            >
               {openFor.slug === edition?.slug
                 ? "Register for free"
                 : `Register for ${eventDateShort(openFor)}`}{" "}

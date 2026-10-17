@@ -1,4 +1,5 @@
 import type {
+  CreateEditionResult,
   DeleteEditionResult,
   Edition,
   EditionFields,
@@ -96,9 +97,17 @@ export interface RegistrationStore {
   /** Every edition, drafts included, soonest first. */
   listEditions(): Promise<Edition[]>;
   getEdition(slug: string): Promise<Edition | null>;
-  /** Generates the slug from the start date. */
-  createEdition(fields: EditionFields): Promise<Edition>;
-  updateEdition(slug: string, patch: Partial<EditionFields>): Promise<Edition | null>;
+  /** Generates the slug from the start date; one edition per day. */
+  createEdition(fields: EditionFields): Promise<CreateEditionResult>;
+  /**
+   * null if there's no such edition, or (with `ifVersion`) if it has changed
+   * since that `updatedAt`.
+   */
+  updateEdition(
+    slug: string,
+    patch: Partial<EditionFields>,
+    ifVersion?: string,
+  ): Promise<Edition | null>;
   /** Only drafts nobody has registered for can be deleted. */
   deleteEdition(slug: string): Promise<DeleteEditionResult>;
   /** Back to draft, only while nobody has registered; false otherwise. */

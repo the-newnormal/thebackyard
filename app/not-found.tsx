@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 export default function NotFound() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader cta={false} />
       <main className="relative isolate flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-24 text-center">
         <Starburst className="absolute top-8 -left-12 -z-10 w-40 -rotate-12 sm:w-56" />
         <p className="font-serif text-2xl text-muted italic">hmm, nobody’s out here</p>

@@ -78,7 +78,7 @@ function PrimaryAction({ schedule }: { schedule: PublicSchedule }) {
 
   if (openFor) {
     return (
-      <Link href="/register" className="btn btn-primary px-7 py-4 text-lg">
+      <Link href={`/register?edition=${openFor.slug}`} className="btn btn-primary px-7 py-4 text-lg">
         {openFor.slug === featured?.slug ? "Save my spot" : `Register for ${eventDateShort(openFor)}`}{" "}
         <span aria-hidden="true">→</span>
       </Link>

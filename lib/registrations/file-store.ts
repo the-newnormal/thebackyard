@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { FIRST_EDITION_SEED } from "@/content/series";
-import { slugFor } from "../editions/plan";
+import { sameDayEdition, slugFor } from "../editions/plan";
 import { isRegistrationOpen } from "../editions/select";
 import type { Edition, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
@@ -211,6 +211,8 @@ export function createFileStore(): RegistrationStore {
     createEdition: (fields) =>
       exclusive(async () => {
         const editions = await loadEditions();
+        const clash = sameDayEdition(editions, fields.startsAt);
+        if (clash) return { kind: "date-taken" as const, edition: clash };
         const now = new Date().toISOString();
         const edition: Edition = {
           ...fields,
@@ -219,14 +221,14 @@ export function createFileStore(): RegistrationStore {
           updatedAt: now,
         };
         await saveEditions([...editions, edition]);
-        return edition;
+        return { kind: "created" as const, edition };
       }),
 
-    updateEdition: (slug, patch) =>
+    updateEdition: (slug, patch, ifVersion) =>
       exclusive(async () => {
         const editions = await loadEditions();
         const index = editions.findIndex((e) => e.slug === slug);
-        if (index === -1) return null;
+        if (index === -1 || (ifVersion && editions[index].updatedAt !== ifVersion)) return null;
         editions[index] = { ...editions[index], ...patch, updatedAt: new Date().toISOString() };
         await saveEditions(editions);
         return editions[index];
@@ -239,7 +241,14 @@ export function createFileStore(): RegistrationStore {
         if (!edition) return "not-found";
         if (edition.status !== "draft") return "not-draft";
         if ((await load()).some((r) => r.eventSlug === slug)) return "has-registrations";
-        await saveEditions(editions.filter((e) => e !== edition));
+        const rest = editions.filter((e) => e !== edition);
+        await saveEditions(rest);
+        // Its poster too, unless another date shows the same image.
+        const posterId = /^\/posters\/([0-9a-f]{32})\./.exec(edition.poster?.src ?? "")?.[1];
+        if (posterId && !rest.some((e) => e.poster?.src.startsWith(`/posters/${posterId}.`))) {
+          await rm(path.join(POSTERS, `${posterId}.bin`), { force: true });
+          await rm(path.join(POSTERS, `${posterId}.json`), { force: true });
+        }
         return "deleted";
       }),
 

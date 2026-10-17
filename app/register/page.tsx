@@ -132,7 +132,9 @@ async function EditionCard({ searchParams }: Pick<PageProps<"/register">, "searc
     result.kind === "open"
       ? result.edition
       : result.kind === "not-open"
-        ? (result.edition ?? result.opening)
+        ? result.unknown
+          ? (result.alternative ?? result.opening)
+          : (result.edition ?? result.opening)
         : null;
   if (!edition) return null;
   const { venue } = edition;
@@ -299,7 +301,7 @@ function NotOpen({
     case "upcoming":
       return (
         <Notice
-          title={`Registration opens ${formatMoment(edition.registrationOpensAt!)}`}
+          title={`Sign-ups for ${date} open ${formatMoment(edition.registrationOpensAt!)}`}
           body={`Sign-ups for ${eventDateLong(edition)} aren’t open yet. Come back then!`}
           action={instead}
         />

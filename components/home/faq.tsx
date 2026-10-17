@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { faqs } from "@/content/copy";
 import { series } from "@/content/series";
-import type { Edition } from "@/lib/editions/types";
-import { eventDateShort } from "@/lib/format";
+import type { PublicSchedule } from "@/lib/editions/public";
+import { eventDateShort, formatMoment } from "@/lib/format";
 import { Starburst } from "../shapes";
 
 const ctaClass =
@@ -54,7 +54,8 @@ function ContactAnswer({ email, instagram }: { email: string; instagram: string 
   );
 }
 
-export function Faq() {
+/** `soloOnly`: the next date allows no friends, so answers that mention them change. */
+export function Faq({ soloOnly = false }: { soloOnly?: boolean }) {
   const { email, instagram } = series.contact;
   return (
     <section id="faq" className="mx-auto max-w-3xl px-4 py-24 sm:px-6 sm:py-32">
@@ -62,7 +63,7 @@ export function Faq() {
       <div className="mt-10 divide-y-2 divide-dashed divide-forest/20 border-y-2 border-dashed border-forest/20">
         {faqs.map((faq) => (
           <FaqItem key={faq.q} q={faq.q}>
-            {faq.a}
+            {soloOnly && "aSolo" in faq ? faq.aSolo : faq.a}
           </FaqItem>
         ))}
         {(email || instagram) && (
@@ -75,8 +76,12 @@ export function Faq() {
   );
 }
 
-/** `openFor`: the date taking sign-ups now; without one, point to Instagram. */
-export function FinalCta({ openFor }: { openFor: Edition | null }) {
+/** Signs people up for the open date; otherwise says what's next and points to Instagram. */
+export function FinalCta({
+  schedule: { openFor, nextOpening, featured },
+}: {
+  schedule: Pick<PublicSchedule, "openFor" | "nextOpening" | "featured">;
+}) {
   const { instagram } = series.contact;
   return (
     <section className="relative isolate overflow-hidden bg-red px-4 py-24 text-center text-cream sm:py-28">
@@ -95,18 +100,29 @@ export function FinalCta({ openFor }: { openFor: Edition | null }) {
         see you in the backyard
       </h2>
       {openFor ? (
-        <Link href="/register" className={`btn mt-10 px-8 py-4 text-lg ${ctaClass}`}>
+        <Link
+          href={`/register?edition=${openFor.slug}`}
+          className={`btn mt-10 px-8 py-4 text-lg ${ctaClass}`}
+        >
           Register for {eventDateShort(openFor)} <span aria-hidden="true">→</span>
         </Link>
       ) : (
-        <a
-          href={`https://instagram.com/${instagram}`}
-          target="_blank"
-          rel="noreferrer"
-          className={`btn mt-10 px-8 py-4 text-lg ${ctaClass}`}
-        >
-          Follow @{instagram} for the next date
-        </a>
+        <>
+          {nextOpening && (
+            <p className="mt-6 text-lg font-semibold">
+              Sign-ups for {eventDateShort(nextOpening)} open{" "}
+              {formatMoment(nextOpening.registrationOpensAt!)}.
+            </p>
+          )}
+          <a
+            href={`https://instagram.com/${instagram}`}
+            target="_blank"
+            rel="noreferrer"
+            className={`btn mt-8 px-8 py-4 text-lg ${ctaClass}`}
+          >
+            Follow @{instagram} for {featured || nextOpening ? "updates" : "the next date"}
+          </a>
+        </>
       )}
     </section>
   );

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/admin-auth";
-import { planDefaults, sgtParts } from "@/lib/editions/plan";
+import { planDefaults } from "@/lib/editions/plan";
 import { eventDateShort } from "@/lib/format";
 import { getStore } from "@/lib/registrations";
 import { AdminHeader } from "../../admin-header";
@@ -41,19 +41,11 @@ async function NewEdition({ searchParams }: Pick<PageProps<"/admin/editions/new"
     <>
       <p className="mt-2 mb-8 text-muted">
         {source
-          ? `Copied from ${eventDateShort(source)}: the same slot in the next month without a date, same times, venue and limits. Add a poster after saving.`
+          ? `Copied from ${eventDateShort(source)}: the same slot in the next month without a date, with the same times, venue and limits. Add a poster after saving.`
           : "Fill in the first date. You can add a poster after saving."}{" "}
         Nothing is public until you publish.
       </p>
-      <EditionForm
-        initial={planDefaults(
-          source,
-          new Date(),
-          new Set(
-            editions.filter((e) => e.status !== "cancelled").map((e) => sgtParts(e.startsAt).date),
-          ),
-        )}
-      />
+      <EditionForm initial={planDefaults(source, new Date(), editions)} />
     </>
   );
 }

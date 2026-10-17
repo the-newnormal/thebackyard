@@ -32,7 +32,7 @@ function fold(line: string): string {
 const details = (edition: Edition, url: string) =>
   [
     series.tagline.join(" | "),
-    edition.status === "cancelled" ? (edition.calledOffNote ?? "Called off.") : edition.notice,
+    edition.status === "cancelled" ? edition.calledOffNote : edition.notice,
     url,
   ]
     .filter(Boolean)

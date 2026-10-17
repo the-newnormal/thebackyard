@@ -5,9 +5,9 @@ import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-auth";
 import { editionFormSchema } from "@/lib/editions/schema";
-import { sgtParts } from "@/lib/editions/plan";
+import { sameDayEdition, sgtParts } from "@/lib/editions/plan";
 import { editionState, hasEnded, isRegistrationOpen } from "@/lib/editions/select";
-import type { EditionFields, StoredPoster } from "@/lib/editions/types";
+import type { Edition, EditionFields, StoredPoster } from "@/lib/editions/types";
 import { eventDateShort } from "@/lib/format";
 import { getStore } from "@/lib/registrations";
 
@@ -60,58 +60,73 @@ export async function saveEdition(
   const editions = await store.listEditions();
   const existing = slug ? editions.find((e) => e.slug === slug) : undefined;
   if (slug && !existing) return { message: "That date no longer exists.", values };
+  const version = String(formData.get("version") ?? "");
   // Saving a form loaded before, say, "Close sign-ups now" would quietly undo it.
-  if (existing && formData.get("version") !== existing.updatedAt) {
-    return {
-      message:
-        "This date changed after you opened this page (maybe sign-ups were closed or reopened). Reload the page to see the latest, then make your change again.",
-      values,
-    };
-  }
-  const publish = existing ? existing.status !== "draft" : formData.get("intent") === "publish";
+  const stale: EditionFormState = {
+    message:
+      "This date changed after you opened this page (maybe sign-ups were closed or reopened). Reload the page to see the latest, then make your change again.",
+    values,
+  };
+  if (existing && version !== existing.updatedAt) return stale;
+
   const fail = (message: string, field: string, error: string): EditionFormState => ({
     message,
     fieldErrors: { [field]: [error] },
     values,
   });
-
-  // Two dates on one day would split the guest list in two.
-  const { date } = sgtParts(parsed.data.startsAt);
-  const clash = editions.find(
-    (e) => e.slug !== slug && e.status !== "cancelled" && sgtParts(e.startsAt).date === date,
-  );
-  if (clash) {
-    return fail(
-      `There’s already a Backyard on ${eventDateShort(clash)}. Edit that one instead, or pick another day.`,
+  const taken = (other: Edition) =>
+    fail(
+      `There’s already a Backyard on ${eventDateShort(other)}. Edit that one instead, or pick another day.`,
       "date",
       "Already taken",
     );
-  }
-  // Publishing (or moving a published date) into the past would only confuse people.
-  const moved = !existing || existing.startsAt !== parsed.data.startsAt;
-  if (publish && moved && new Date(parsed.data.startsAt) <= new Date()) {
-    return fail(
-      existing
-        ? "That date is in the past. Pick a later one."
-        : "That date is in the past. Save it as a draft, or pick a later date.",
-      "date",
-      "In the past",
-    );
+  const { startsAt, endsAt } = parsed.data;
+  const now = new Date();
+
+  if (!existing) {
+    const publish = formData.get("intent") === "publish";
+    // Publishing a date that's already passed would only confuse people.
+    if (publish && new Date(startsAt) <= now) {
+      return fail(
+        "That date is in the past. Save it as a draft, or pick a later date.",
+        "date",
+        "In the past",
+      );
+    }
+    const result = await store.createEdition({
+      ...parsed.data,
+      status: publish ? "published" : "draft",
+      poster: null,
+      calledOffNote: null,
+    });
+    // Two dates on one day would split the guest list in two.
+    if (result.kind === "date-taken") return taken(result.edition);
+    updateTag("editions");
+    redirect(`/admin/editions/${result.edition.slug}?saved=${publish ? "published" : "draft"}`);
   }
 
-  if (existing) {
-    await store.updateEdition(existing.slug, parsed.data);
-    updateTag("editions");
-    return { saved: true, message: "Saved. Passes and the homepage show the changes now." };
+  const movedDay = sgtParts(existing.startsAt).date !== sgtParts(startsAt).date;
+  const clash = movedDay && sameDayEdition(editions, startsAt, existing.slug);
+  if (clash) return taken(clash);
+  if (existing.status !== "draft") {
+    const retimed = existing.startsAt !== startsAt || existing.endsAt !== endsAt;
+    // Its guest list belongs to the night it happened; plan a new date instead.
+    if (hasEnded(existing, now) && movedDay) {
+      return fail(
+        "This date is over, so it keeps its guest list. To plan another, use “Copy to next month” on the Dates page.",
+        "date",
+        "Already over",
+      );
+    }
+    // Ending it in the past would end it for everyone with a pass.
+    if (retimed && new Date(endsAt) <= now) {
+      return fail("That time is in the past. Pick a later one.", "endTime", "In the past");
+    }
   }
-  const created = await store.createEdition({
-    ...parsed.data,
-    status: publish ? "published" : "draft",
-    poster: null,
-    calledOffNote: null,
-  });
+  const updated = await store.updateEdition(existing.slug, parsed.data, version);
+  if (!updated) return stale;
   updateTag("editions");
-  redirect(`/admin/editions/${created.slug}?saved=${publish ? "published" : "draft"}`);
+  return { saved: true, message: "Saved. Passes and the homepage show the changes now." };
 }
 
 /** Publish, unpublish, call off or un-cancel a date. */
@@ -128,6 +143,12 @@ export async function setEditionStatus(formData: FormData) {
     // people have passes, call it off instead so they find out.
     if (await store.unpublishEdition(edition.slug)) updateTag("editions");
     return;
+  }
+
+  // Never two dates taking sign-ups on one day (only possible with old data).
+  if (to === "published") {
+    const others = (await store.listEditions()).filter((e) => e.status !== "cancelled");
+    if (sameDayEdition(others, edition.startsAt, edition.slug)) return;
   }
 
   let patch: Partial<EditionFields> | null = null;
@@ -224,10 +245,14 @@ export async function uploadPoster(formData: FormData): Promise<{ error?: string
 
   // Named by content, so a URL always shows the same image.
   const id = createHash("sha256").update(bytes).digest("hex").slice(0, 32);
-  await store.putPoster({ id, contentType: kind.type, width, height, bytes });
+  const poster = { id, contentType: kind.type, width, height, bytes };
+  await store.putPoster(poster);
   await store.updateEdition(edition.slug, {
     poster: { src: `/posters/${id}.${kind.ext}`, width, height },
   });
+  // Again, in case another date removed the same image in between; now that
+  // this edition points at it, no clean-up can delete it.
+  await store.putPoster(poster);
   if (previous !== id) await cleanUp();
   updateTag("editions");
   return {};

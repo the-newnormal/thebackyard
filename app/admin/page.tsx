@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { adminFocus, editionState, isRegistrationOpen } from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured } from "@/lib/email";
-import { eventDateLong, eventDateShort, eventTimeRange } from "@/lib/format";
+import { eventDateLong, eventDateShort, eventTimeRange, formatMoment } from "@/lib/format";
 import {
   DIETARY_OPTIONS,
   getStore,
@@ -246,7 +246,7 @@ function WindowButton({ edition, now }: { edition: Edition; now: Date }) {
         confirm={
           close
             ? "Close sign-ups now? New people won’t be able to register."
-            : `Reopen sign-ups until ${eventTimeRange(edition).split("–")[0]} on ${eventDateShort(edition)}?`
+            : `Reopen sign-ups until ${formatMoment(edition.startsAt)}?`
         }
         className="btn btn-outline px-4 py-2 text-sm"
       >

@@ -52,6 +52,11 @@ export interface StoredPoster {
   bytes: Uint8Array;
 }
 
+export type CreateEditionResult =
+  | { kind: "created"; edition: Edition }
+  /** Another edition is already on that day. */
+  | { kind: "date-taken"; edition: Edition };
+
 export type DeleteEditionResult = "deleted" | "not-found" | "not-draft" | "has-registrations";
 
 export interface EditionStats {

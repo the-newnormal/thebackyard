@@ -64,6 +64,8 @@ export const faqs = [
   {
     q: "Can I bring friends?",
     a: "Please do. Add them when you register, or send them the link so they can sign up themselves.",
+    // When a date allows no friends on one registration.
+    aSolo: "Please do! This time everyone registers for themselves, so send them the link.",
   },
   {
     q: "I have dietary needs.",

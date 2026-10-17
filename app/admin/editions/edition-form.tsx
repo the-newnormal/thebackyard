@@ -70,18 +70,6 @@ export function EditionForm({
   initial: EditionFormValues;
 }) {
   const [state, action, pending] = useActionState<EditionFormState, FormData>(saveEdition, {});
-  const v = (state.values ?? initial) as EditionFormValues;
-  const e = state.fieldErrors ?? {};
-
-  // Sign-ups close at the start time unless the organiser picks another time.
-  const [date, setDate] = useState(v.date);
-  const [startTime, setStartTime] = useState(v.startTime);
-  const [closesAt, setClosesAt] = useState(v.closesAt);
-  const closesFollowsStart = useRef(v.closesAt === `${v.date}T${v.startTime}`);
-  useEffect(() => {
-    if (closesFollowsStart.current) setClosesAt(`${date}T${startTime}`);
-  }, [date, startTime]);
-
   const alertRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (state.message) alertRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -104,6 +92,64 @@ export function EditionForm({
         </div>
       )}
 
+      {/* Starts afresh whenever the date changes on the server, so no field
+          holds a value from before (e.g. a close time since changed). */}
+      <Fields
+        key={version ?? "new"}
+        values={(state.values ?? initial) as EditionFormValues}
+        errors={state.fieldErrors ?? {}}
+      />
+
+      <div className="flex flex-wrap gap-3">
+        {slug ? (
+          <button type="submit" disabled={pending} className="btn btn-primary px-6 py-3">
+            {pending ? "Saving…" : "Save changes"}
+          </button>
+        ) : (
+          <>
+            <button
+              type="submit"
+              name="intent"
+              value="publish"
+              disabled={pending}
+              className="btn btn-primary px-6 py-3"
+            >
+              {pending ? "Saving…" : "Save & publish"}
+            </button>
+            <button
+              type="submit"
+              name="intent"
+              value="draft"
+              disabled={pending}
+              className="btn btn-outline px-6 py-3"
+            >
+              Save as draft
+            </button>
+          </>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function Fields({
+  values: v,
+  errors: e,
+}: {
+  values: EditionFormValues;
+  errors: Partial<Record<string, string[]>>;
+}) {
+  // Sign-ups close at the start time unless the organiser picks another time.
+  const [date, setDate] = useState(v.date);
+  const [startTime, setStartTime] = useState(v.startTime);
+  const [closesAt, setClosesAt] = useState(v.closesAt);
+  const closesFollowsStart = useRef(v.closesAt === `${v.date}T${v.startTime}`);
+  useEffect(() => {
+    if (closesFollowsStart.current) setClosesAt(`${date}T${startTime}`);
+  }, [date, startTime]);
+
+  return (
+    <>
       <Group title="When">
         <Field label="Date" errors={e.date}>
           <input
@@ -243,34 +289,6 @@ export function EditionForm({
         </Field>
       </Group>
 
-      <div className="flex flex-wrap gap-3">
-        {slug ? (
-          <button type="submit" disabled={pending} className="btn btn-primary px-6 py-3">
-            {pending ? "Saving…" : "Save changes"}
-          </button>
-        ) : (
-          <>
-            <button
-              type="submit"
-              name="intent"
-              value="publish"
-              disabled={pending}
-              className="btn btn-primary px-6 py-3"
-            >
-              {pending ? "Saving…" : "Save & publish"}
-            </button>
-            <button
-              type="submit"
-              name="intent"
-              value="draft"
-              disabled={pending}
-              className="btn btn-outline px-6 py-3"
-            >
-              Save as draft
-            </button>
-          </>
-        )}
-      </div>
-    </form>
+    </>
   );
 }
