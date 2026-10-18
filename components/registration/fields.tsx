@@ -194,7 +194,7 @@ export function SearchList({
             } else if (e.key === "Home" || e.key === "End") {
               e.preventDefault();
               move(e.key === "Home" ? 0 : matches.length - 1);
-            } else if (e.key === "Enter") {
+            } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
               e.preventDefault();
               if (matches[active]) onPick(matches[active]);
               // Otherwise just put the keyboard away so they can scroll.

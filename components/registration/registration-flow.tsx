@@ -798,7 +798,8 @@ export function RegistrationFlow({
                   value={values.schoolOther}
                   onChange={(e) => update({ schoolOther: e.target.value })}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    // Enter while typing in Chinese, say, picks the characters.
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                       e.preventDefault();
                       next();
                     }
