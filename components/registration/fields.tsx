@@ -7,6 +7,13 @@ import { COUNTRIES, type Country } from "./countries";
 export const LINK =
   "font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion";
 
+/**
+ * Enter that only confirms characters from an input method (pinyin, say).
+ * Safari sends it after composing ends, so it's caught by its 229 key code.
+ */
+export const isConfirmingText = (e: React.KeyboardEvent) =>
+  e.nativeEvent.isComposing || e.keyCode === 229;
+
 export function ErrorText({ id, children }: { id: string; children?: React.ReactNode }) {
   if (!children) return null;
   return (
@@ -194,7 +201,7 @@ export function SearchList({
             } else if (e.key === "Home" || e.key === "End") {
               e.preventDefault();
               move(e.key === "Home" ? 0 : matches.length - 1);
-            } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            } else if (e.key === "Enter" && !isConfirmingText(e)) {
               e.preventDefault();
               if (matches[active]) onPick(matches[active]);
               // Otherwise just put the keyboard away so they can scroll.

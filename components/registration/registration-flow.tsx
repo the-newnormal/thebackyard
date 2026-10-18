@@ -44,6 +44,7 @@ import {
   ChoiceGrid,
   CountryPicker,
   ErrorText,
+  isConfirmingText,
   LINK,
   SearchList,
 } from "./fields";
@@ -798,8 +799,7 @@ export function RegistrationFlow({
                   value={values.schoolOther}
                   onChange={(e) => update({ schoolOther: e.target.value })}
                   onKeyDown={(e) => {
-                    // Enter while typing in Chinese, say, picks the characters.
-                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    if (e.key === "Enter" && !isConfirmingText(e)) {
                       e.preventDefault();
                       next();
                     }
