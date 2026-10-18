@@ -37,6 +37,7 @@ const FIELDS = [
   "birthdate",
   "occupation",
   "school",
+  "schoolOther",
   "dietary",
   "dietaryNotes",
   "email",

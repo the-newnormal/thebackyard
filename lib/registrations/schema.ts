@@ -54,6 +54,7 @@ export const registrationSchema = z
       }),
     occupation: z.enum(OCCUPATIONS, "Pick one"),
     school: z.string().trim(),
+    schoolOther: optionalText(100),
     dietary: z.enum(dietaryValues, "Pick one"),
     dietaryNotes: optionalText(300),
     email: z
@@ -74,6 +75,10 @@ export const registrationSchema = z
       ctx.addIssue({ code: "custom", path: ["school"], message: "Pick your school" });
     }
   })
-  .transform((v) => ({ ...v, school: v.school || null }));
+  // A school under "Others" is saved by the name they gave it, if any.
+  .transform(({ schoolOther, ...v }) => ({
+    ...v,
+    school: (v.school === "Others" && schoolOther) || v.school || null,
+  }));
 
 export type RegistrationInput = z.infer<typeof registrationSchema>;

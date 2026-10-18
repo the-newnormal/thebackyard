@@ -88,7 +88,8 @@ automatically on first use.
 
 - Everyone registers for themselves. The questions and their options come from
   the Registration Questions sheet; students (secondary, ITE, JC, poly or
-  university) pick their school from one A-Z list of every school.
+  university) pick their school from one A-Z list of every school, or pick
+  "Others" and type its name, which is saved as their school.
 - One registration per email per date. Re-submitting with the same email and
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.

@@ -75,6 +75,8 @@ type Values = {
   birthdate: string;
   occupation: string;
   school: string;
+  /** The school's name, when it's "Others". */
+  schoolOther: string;
   dietary: string;
   dietaryNotes: string;
   email: string;
@@ -93,6 +95,7 @@ const EMPTY: Values = {
   birthdate: "",
   occupation: "",
   school: "",
+  schoolOther: "",
   dietary: "",
   dietaryNotes: "",
   email: "",
@@ -140,6 +143,7 @@ const FIELD_STEP: Record<string, StepKey> = {
   birthdate: "birthdate",
   occupation: "occupation",
   school: "school",
+  schoolOther: "school",
   dietary: "dietary",
   dietaryNotes: "dietary",
   email: "email",
@@ -773,9 +777,37 @@ export function RegistrationFlow({
               placeholder="Search schools"
               options={schools}
               value={values.school}
-              onPick={(v) => pick({ school: v })}
+              // "Others" stays here to ask for the school's name.
+              onPick={(v) => (v === "Others" ? update({ school: v }) : pick({ school: v }))}
               others={schools.includes("Others") ? "Others" : undefined}
             />
+            {values.school === "Others" && (
+              <div className="mt-6">
+                <label
+                  htmlFor={`${headingId}-other`}
+                  className="mb-3 block font-serif text-xl text-muted italic"
+                >
+                  what’s it called? or just carry on.
+                </label>
+                <input
+                  id={`${headingId}-other`}
+                  autoFocus
+                  autoCapitalize="words"
+                  enterKeyHint="next"
+                  maxLength={100}
+                  value={values.schoolOther}
+                  onChange={(e) => update({ schoolOther: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      next();
+                    }
+                  }}
+                  placeholder="School name"
+                  className="field h-16 px-5 text-2xl"
+                />
+              </div>
+            )}
             <ErrorText id={errorId}>{error}</ErrorText>
             <Nav onBack={back} onNext={() => next()} hideNext={!values.school} />
           </div>
@@ -1213,6 +1245,8 @@ function Answers({
     birthdate: parseBirthdate(values.birthdate) ?? values.birthdate,
     occupation: values.occupation,
     school: schoolsFor(values.occupation) ? values.school : "",
+    schoolOther:
+      schoolsFor(values.occupation) && values.school === "Others" ? values.schoolOther : "",
     dietary: values.dietary,
     dietaryNotes: values.dietaryNotes,
     email: values.email,
