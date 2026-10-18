@@ -75,6 +75,10 @@ export const faqs = [
     a: "Tell us in the form — vegetarian, halal, no beef, allergies — and we’ll do our best to cater for you.",
   },
   {
+    q: "Is the food halal?",
+    a: "We’re halal-friendly, but not halal-certified.",
+  },
+  {
     q: "Do I need to know anyone?",
     a: "Not at all. Come alone, come as you are. Leaving with new friends is kind of the point.",
   },

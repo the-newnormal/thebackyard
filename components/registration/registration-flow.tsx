@@ -44,6 +44,7 @@ import {
   ChoiceGrid,
   CountryPicker,
   ErrorText,
+  isConfirmingText,
   LINK,
   SearchList,
 } from "./fields";
@@ -798,7 +799,7 @@ export function RegistrationFlow({
                   value={values.schoolOther}
                   onChange={(e) => update({ schoolOther: e.target.value })}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === "Enter" && !isConfirmingText(e)) {
                       e.preventDefault();
                       next();
                     }
