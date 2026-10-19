@@ -92,7 +92,7 @@ export const faqs = [
   },
   {
     q: "How often is Backyard?",
-    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram to hear when the next date opens. Once you’ve registered, we’ll keep you posted too.`,
+    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram to hear when the next date opens. Once you’ve registered, we’ll keep you posted too, unless you opt out.`,
   },
   {
     q: "How do I get there?",

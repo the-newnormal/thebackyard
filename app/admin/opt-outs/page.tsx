@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { series } from "@/content/series";
 import { requireAdmin } from "@/lib/admin-auth";
-import { formatTimestamp } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { getStore } from "@/lib/registrations";
 import { AdminHeader } from "../admin-header";
 import { removeOptOut } from "../actions";
@@ -49,7 +49,7 @@ async function OptOuts() {
             <li key={o.contact} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="font-semibold text-ink [overflow-wrap:anywhere]">{o.contact}</p>
-                <p className="text-sm text-muted">since {formatTimestamp(o.createdAt)}</p>
+                <p className="text-sm text-muted">since {formatDate(o.createdAt)}</p>
               </div>
               <form action={removeOptOut}>
                 <input type="hidden" name="contact" value={o.contact} />

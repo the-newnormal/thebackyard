@@ -68,10 +68,10 @@ npm run dev
 ```
 
 Without `DATABASE_URL`, data is saved in `.data/` (git-ignored): sign-ups in
-`registrations.json`, dates in `editions.json` (starting with the first one) and
-posters in `posters/`. Point `DATABASE_URL` at any Postgres to use the real
-store; the `registrations`, `editions` and `posters` tables are created
-automatically on first use.
+`registrations.json`, dates in `editions.json` (starting with the first one),
+opt-outs in `opt-outs.json` and posters in `posters/`. Point `DATABASE_URL` at
+any Postgres to use the real store; the `registrations`, `editions`, `posters`
+and `marketing_opt_outs` tables are created automatically on first use.
 
 ## Deploying (Vercel)
 

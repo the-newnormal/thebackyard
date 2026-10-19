@@ -49,6 +49,10 @@ export function formatMoment(iso: string): string {
   return `${shortDate(date)}, ${time(date).replace(/:00(?=[AP]M)/, "")}`;
 }
 
+/** e.g. "19 Oct 2026" */
+export const formatDate = (iso: string) =>
+  fmt(new Date(iso), { day: "numeric", month: "short", year: "numeric" });
+
 export function formatTimestamp(iso: string): string {
   return fmt(new Date(iso), {
     day: "numeric",

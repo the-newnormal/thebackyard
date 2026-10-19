@@ -514,6 +514,8 @@ export function RegistrationFlow({
     }
     // A rejected number needs a fresh code.
     if (byStep.phone) setVerified(null);
+    // The form resets after every reply, unticking the guardian box; match it.
+    setValues((v) => ({ ...v, guardianConsent: "" }));
     const target = steps.find((s) => byStep[s]) ?? "pdpa";
     setErrors(byStep);
     if (target !== step) go(target, -1);

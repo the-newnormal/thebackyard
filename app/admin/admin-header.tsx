@@ -11,25 +11,31 @@ export function AdminHeader() {
           </Link>
           <span className="font-serif text-xl text-muted italic">dashboard</span>
         </div>
-        <nav className="flex items-center gap-1">
-          <Link href="/admin" className="btn px-4 py-2 text-sm text-forest hover:bg-forest/10">
+        <nav className="flex flex-wrap items-center gap-1">
+          <Link
+            href="/admin"
+            className="btn px-4 py-2 text-sm whitespace-nowrap text-forest hover:bg-forest/10"
+          >
             Guests
           </Link>
           <Link
             href="/admin/editions"
-            className="btn px-4 py-2 text-sm text-forest hover:bg-forest/10"
+            className="btn px-4 py-2 text-sm whitespace-nowrap text-forest hover:bg-forest/10"
           >
             Dates
           </Link>
           <Link
             href="/admin/opt-outs"
-            className="btn px-4 py-2 text-sm text-forest hover:bg-forest/10"
+            className="btn px-4 py-2 text-sm whitespace-nowrap text-forest hover:bg-forest/10"
           >
             Opt-outs
           </Link>
           {/* A full page load on sign-out, so no guest data lingers in the page. */}
           <form method="post" action="/admin/logout">
-            <button type="submit" className="btn px-4 py-2 text-sm text-muted hover:text-red">
+            <button
+              type="submit"
+              className="btn px-4 py-2 text-sm whitespace-nowrap text-muted hover:text-red"
+            >
               Sign out
             </button>
           </form>

@@ -232,8 +232,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       // ALTER TABLE locks a table even with nothing to change. A deployment
       // still serving sign-ups holds editions while it reads registrations,
       // so locking editions after registrations here could deadlock with it.
-      const [editionsHave] = await tx<{ note: boolean; rls: boolean }[]>`
+      const [editionsHave] = await tx<{ existed: boolean; note: boolean; rls: boolean }[]>`
         select
+          to_regclass('editions') is not null as existed,
           exists (
             select 1 from pg_attribute
             where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
@@ -325,11 +326,15 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         `;
       }
       if (!editionsHave.rls) await tx`alter table editions enable row level security`;
-      // Sign-ups made before editions existed all belong to this one.
-      await tx`
-        insert into editions ${tx({ slug: FIRST_EDITION_SEED.slug, ...editionColumns(FIRST_EDITION_SEED) })}
-        on conflict (slug) do nothing
-      `;
+      // Sign-ups made before editions existed all belong to this one. Only for
+      // a new table: on an old one the insert would wait on any change to that
+      // row by a deployment still running, while holding registrations.
+      if (!editionsHave.existed) {
+        await tx`
+          insert into editions ${tx({ slug: FIRST_EDITION_SEED.slug, ...editionColumns(FIRST_EDITION_SEED) })}
+          on conflict (slug) do nothing
+        `;
+      }
 
       // Uploaded posters, served by app/posters/[file]/route.ts.
       await tx`

@@ -118,8 +118,9 @@ export async function register(
   // A page opened before the step-by-step questions has none of them; its old
   // form couldn't show which answers are missing.
   if (!formData.has("residentStatus")) return { message: RELOAD };
-  // One opened before the Terms asked Yes or No to updates instead.
-  if (formData.has("marketingOptIn")) return { message: RELOAD };
+  // One opened before the Terms (it asked Yes or No to updates) or before the
+  // guardian tick-box can't show what registering now asks.
+  if (!formData.has("guardianConsent")) return { message: RELOAD };
 
   let target;
   try {
