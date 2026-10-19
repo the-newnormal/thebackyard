@@ -1189,7 +1189,7 @@ function Nav({
           onClick={onNext}
           onMouseDown={keepFocus}
           disabled={pending}
-          className="btn btn-primary flex-1 py-4 text-lg"
+          className="btn btn-primary flex-1 px-4 py-4 text-lg sm:px-6"
         >
           {pending && pendingLabel ? (
             pendingLabel

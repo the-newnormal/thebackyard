@@ -1,7 +1,7 @@
 // The Terms and Conditions at /terms, word for word from "Backyard SG — Terms
 // and Conditions". Wrap words in **double asterisks** to bold them and
 // *single asterisks* to italicise them; email addresses become links.
-// Update `dated` whenever the wording changes.
+// Update `updated` whenever the wording changes.
 
 /** A bulleted list item, with a list of its own if it has one. */
 type TermsItem = string | { text: string; items: string[] };
@@ -11,11 +11,11 @@ export type TermsBlock = string | TermsItem[];
 
 export type TermsSection = { heading: string; blocks: TermsBlock[] };
 
-const dated = "Effective date: 18 October 2026 · Last updated: 18 October 2026";
+const updated = "18 October 2026";
+const dated = `Effective date: 18 October 2026 · Last updated: ${updated}`;
 
 export const terms = {
-  title: "Backyard SG — Terms and Conditions",
-  updated: "18 October 2026",
+  updated,
   about: {
     heading: "About these Terms",
     blocks: [
