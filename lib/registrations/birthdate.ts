@@ -38,3 +38,6 @@ export function ageOn(birthdate: string, on: string): number {
   const years = Number(on.slice(0, 4)) - Number(birthdate.slice(0, 4));
   return on.slice(5) < birthdate.slice(5) ? years - 1 : years;
 }
+
+/** Under 18 on `today` (YYYY-MM-DD), so a parent or guardian has to agree (Terms 2.2). */
+export const isUnder18 = (birthdate: string, today: string) => ageOn(birthdate, today) < 18;

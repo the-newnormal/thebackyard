@@ -3,11 +3,12 @@ import { isAdmin } from "@/lib/admin-auth";
 import { adminFocus } from "@/lib/editions/select";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
 import { ageOnDay, editionDay } from "@/lib/registrations/demographics";
+import { optOutSet, wantsUpdates } from "@/lib/registrations/opt-outs";
 
 type Column = [string, (r: Registration) => string | number | boolean | null];
 
 /** `day`: the edition's date, for ages on the day. */
-const columns = (day: string): Column[] => [
+const columns = (day: string, optedOut: ReadonlySet<string>): Column[] => [
   ["code", (r) => r.code],
   ["status", (r) => r.status],
   ["name", (r) => r.name],
@@ -26,7 +27,7 @@ const columns = (day: string): Column[] => [
   ["dietary", (r) => r.dietary],
   ["dietary_notes", (r) => r.dietaryNotes],
   ["heard_from", (r) => r.heardFrom],
-  ["wants_updates", (r) => r.marketingOptIn],
+  ["wants_updates", (r) => wantsUpdates(r, optedOut)],
   ["checked_in_at", (r) => r.checkedInAt],
   ["registered_at", (r) => r.createdAt],
 ];
@@ -50,8 +51,8 @@ export async function GET(request: NextRequest) {
     ? editions.find((e) => e.slug === requested)
     : adminFocus(editions, new Date());
   if (!edition) return new Response("No such date", { status: 404 });
-  const rows = await store.list(edition.slug);
-  const cols = columns(editionDay(edition));
+  const [rows, optOuts] = await Promise.all([store.list(edition.slug), store.listOptOuts()]);
+  const cols = columns(editionDay(edition), optOutSet(optOuts));
   const csv = [
     cols.map(([name]) => name).join(","),
     ...rows.map((r) => cols.map(([, get]) => cell(get(r))).join(",")),

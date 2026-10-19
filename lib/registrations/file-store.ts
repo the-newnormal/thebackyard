@@ -12,6 +12,7 @@ import {
   queueTime,
   type GiveSpotResult,
   type NewRegistration,
+  type OptOut,
   type RegisterResult,
   type Registration,
   type RegistrationStore,
@@ -25,6 +26,7 @@ const DIR = path.join(process.cwd(), ".data");
 const FILE = path.join(DIR, "registrations.json");
 const EDITIONS = path.join(DIR, "editions.json");
 const POSTERS = path.join(DIR, "posters");
+const OPT_OUTS = path.join(DIR, "opt-outs.json");
 
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -88,6 +90,7 @@ const loadEditions = async () =>
     .map((e) => ({ ...e, calledOffNote: e.calledOffNote ?? null }))
     .sort(byStart);
 const saveEditions = (editions: Edition[]) => writeJson(EDITIONS, editions);
+const loadOptOuts = () => readJson<OptOut[]>(OPT_OUTS, () => []);
 
 const confirmedHeadcount = (rows: Registration[], slug: string) =>
   rows
@@ -274,6 +277,23 @@ export function createFileStore(): RegistrationStore {
     releaseByPassToken: (token) => withdraw((r) => r.passToken === token, false),
 
     remove: (code) => withdraw((r) => r.code === code, true),
+
+    async listOptOuts() {
+      return (await loadOptOuts()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    addOptOut: (contact) =>
+      exclusive(async () => {
+        const optOuts = await loadOptOuts();
+        if (optOuts.some((o) => o.contact === contact)) return;
+        await writeJson(OPT_OUTS, [...optOuts, { contact, createdAt: new Date().toISOString() }]);
+      }),
+
+    removeOptOut: (contact) =>
+      exclusive(async () => {
+        const optOuts = await loadOptOuts();
+        await writeJson(OPT_OUTS, optOuts.filter((o) => o.contact !== contact));
+      }),
 
     listEditions: loadEditions,
 

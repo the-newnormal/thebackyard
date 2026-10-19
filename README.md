@@ -10,9 +10,10 @@ with its own date, venue, capacity, poster and guest list.
 - **`/register`**: free registration on a page of its own, one question per screen:
   name, residency, sex, race, date of birth, occupation (and school, for students),
   dietary needs, email, mobile (confirmed with a texted code when Twilio is set up)
-  and agreeing to the Terms, for whichever date is taking sign-ups (`?edition=<slug>`
-  for a specific one). Unfinished answers are kept in the browser, per date, so
-  people can pick up where they left off. A waitlist opens when it's full
+  and agreeing to the Terms (under-18s also tick that a parent or guardian agreed),
+  for whichever date is taking sign-ups (`?edition=<slug>` for a specific one).
+  Unfinished answers are kept in the browser, per date, so people can pick up
+  where they left off. A waitlist opens when it's full
 - **`/terms`**: the Terms and Conditions, with the Data Protection Notice, linked
   from the consent on the last sign-up step
 - **`/pass/<token>`**: each guest's pass for their own date, with their check-in
@@ -21,6 +22,9 @@ with its own date, venue, capacity, poster and guest list.
 - **`/admin`**: organiser dashboard with headcount, dietary breakdown, search,
   check-in, waitlist and CSV export, per date (`?edition=<slug>`)
 - **`/admin/editions`**: plan, publish, edit, call off and add posters to dates
+- **`/admin/opt-outs`**: record people who emailed to stop getting updates, by
+  email address or number; they're left out of "Want updates" and the CSV's
+  `wants_updates` on every date until removed
 
 Built with Next.js 16 (App Router, Cache Components), Tailwind CSS 4 and Postgres.
 

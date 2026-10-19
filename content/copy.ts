@@ -61,6 +61,11 @@ export const moreThan = {
 export const signUpConsent = {
   body: "By submitting this form, I consent to Backyard SG and its Affiliated Parties collecting, using and disclosing my personal data for operational planning, security, communications and research, and to using my contact details so they can text/email me information about events, programmes, products or services, handled in accordance with Singapore’s Personal Data Protection Act 2012. I can opt out of marketing at any time by emailing Backyard SG, as set out in the Terms.",
   terms: { before: "Full Terms & Conditions:", link: "Click Here" },
+  // Ticked as well by anyone under 18 when they sign up (Terms 2.2).
+  guardian: {
+    label: "My parent or guardian has agreed to me signing up, and to these Terms.",
+    missing: "Ask your parent or guardian first, then tick this to sign up.",
+  },
   button: "Agree to proceed",
 };
 

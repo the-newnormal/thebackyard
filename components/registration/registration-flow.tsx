@@ -28,7 +28,12 @@ import {
   schoolsFor,
   SEXES,
 } from "@/content/registration-options";
-import { birthdateProblem, dateIn, parseBirthdate } from "@/lib/registrations/birthdate";
+import {
+  birthdateProblem,
+  dateIn,
+  isUnder18,
+  parseBirthdate,
+} from "@/lib/registrations/birthdate";
 import { EMAIL_PATTERN } from "@/lib/registrations/email";
 import {
   composePhone,
@@ -84,6 +89,8 @@ type Values = {
   /** A country name rather than its code, since +1 is shared. */
   phoneCountry: string;
   phoneLocal: string;
+  /** "on" once an under-18 has ticked that their parent or guardian agreed. */
+  guardianConsent: string;
 };
 
 const EMPTY: Values = {
@@ -100,6 +107,7 @@ const EMPTY: Values = {
   email: "",
   phoneCountry: COUNTRIES[0].name,
   phoneLocal: "",
+  guardianConsent: "",
 };
 
 /**
@@ -199,6 +207,12 @@ function isVerified(values: Values, verified: Verified | null): boolean {
   return expires - Date.now() > 10 * 60 * 1000;
 }
 
+/** Under 18 today, so a parent or guardian has to agree too (Terms 2.2). */
+function isMinor(values: Values): boolean {
+  const iso = parseBirthdate(values.birthdate);
+  return iso !== null && isUnder18(iso, dateIn(series.timeZone));
+}
+
 /** The line under each question, if it has one. */
 function asideFor(step: StepKey, values: Values, verifyPhone: boolean): string | undefined {
   switch (step) {
@@ -249,8 +263,11 @@ function validate(step: StepKey, values: Values): string | null {
           ? "Use an 8-digit SG number"
           : "That number doesn’t look right";
     case "code":
-    case "pdpa":
       return null;
+    case "pdpa":
+      return isMinor(values) && values.guardianConsent !== "on"
+        ? signUpConsent.guardian.missing
+        : null;
     default:
       return values[step] ? null : "Pick one";
   }
@@ -983,7 +1000,16 @@ export function RegistrationFlow({
 
       case "pdpa":
         return (
-          <form action={submitAction}>
+          <form
+            action={submitAction}
+            onSubmit={(e) => {
+              const problem = validate("pdpa", values);
+              if (problem) {
+                e.preventDefault();
+                setErrors((er) => ({ ...er, pdpa: problem }));
+              }
+            }}
+          >
             <Question id={headingId} kicker={KICKERS[step]}>
               just before eating!
             </Question>
@@ -1001,6 +1027,19 @@ export function RegistrationFlow({
               </Link>
               .)
             </p>
+            {isMinor(values) && (
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-forest/20 bg-card p-5 text-lg leading-snug text-ink">
+                <input
+                  type="checkbox"
+                  checked={values.guardianConsent === "on"}
+                  onChange={(e) => update({ guardianConsent: e.target.checked ? "on" : "" })}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? errorId : undefined}
+                  className="mt-0.5 size-6 shrink-0 accent-forest"
+                />
+                <span>{signUpConsent.guardian.label}</span>
+              </label>
+            )}
             <ErrorText id={errorId}>{error}</ErrorText>
 
             <Answers
@@ -1239,6 +1278,7 @@ function Answers({
     // So the server can tell this form asked for a code.
     verifyPhone: verifyPhone ? "on" : "",
     consent: "on",
+    guardianConsent: isMinor(values) ? values.guardianConsent : "",
   };
   return (
     <>

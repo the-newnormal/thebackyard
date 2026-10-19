@@ -21,6 +21,12 @@ export function AdminHeader() {
           >
             Dates
           </Link>
+          <Link
+            href="/admin/opt-outs"
+            className="btn px-4 py-2 text-sm text-forest hover:bg-forest/10"
+          >
+            Opt-outs
+          </Link>
           {/* A full page load on sign-out, so no guest data lingers in the page. */}
           <form method="post" action="/admin/logout">
             <button type="submit" className="btn px-4 py-2 text-sm text-muted hover:text-red">

@@ -43,6 +43,7 @@ const FIELDS = [
   "email",
   "phone",
   "consent",
+  "guardianConsent",
 ];
 
 const CLOSED = "Registration has closed for this one — see you at the next Backyard!";
