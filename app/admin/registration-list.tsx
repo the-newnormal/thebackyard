@@ -9,6 +9,7 @@ import {
   DIETARY_OPTIONS,
   HEARD_FROM_OPTIONS,
   partySize,
+  queueTime,
   type Registration,
 } from "@/lib/registrations/types";
 import {
@@ -67,7 +68,7 @@ export function RegistrationList({
     () =>
       registrations
         .filter((r) => r.status === "waitlist")
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+        .sort((a, b) => queueTime(a).localeCompare(queueTime(b))),
     [registrations],
   );
   const places = useMemo(() => new Map(queue.map((r, i) => [r.code, i + 1])), [queue]);

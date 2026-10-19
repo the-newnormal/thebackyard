@@ -6,15 +6,23 @@ import { getStore } from ".";
 import type { Registration } from "./types";
 
 /**
- * Emails guests just given a spot from one date's waitlist their "you're in",
- * once the response has gone out. One at a time, to go easy on Gmail.
+ * Emails guests just given a spot from the waitlist their "you're in", once
+ * the response has gone out. One at a time, to go easy on Gmail.
  */
 export function announceSpots(promoted: Registration[]) {
   if (promoted.length === 0) return;
   after(async () => {
-    const edition = await getStore().getEdition(promoted[0].eventSlug);
-    // Calling a date off doesn't wait for a fill already under way.
-    if (!edition || edition.status !== "published" || hasEnded(edition, new Date())) return;
-    for (const registration of promoted) await sendConfirmationEmail(registration, edition);
+    const store = getStore();
+    for (const { code, passToken, eventSlug } of promoted) {
+      // Fresh each time: the date can be called off, or the guest drop out,
+      // while earlier emails go out.
+      const [edition, registration] = await Promise.all([
+        store.getEdition(eventSlug),
+        store.getByCode(code),
+      ]);
+      if (!edition || edition.status !== "published" || hasEnded(edition, new Date())) return;
+      if (registration?.passToken !== passToken || registration.status !== "confirmed") continue;
+      await sendConfirmationEmail(registration, edition);
+    }
   });
 }

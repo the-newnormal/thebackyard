@@ -191,8 +191,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         />
       </div>
 
-      {/* With a limit, people can be let in off the waitlist at any time. */}
-      {capacity !== null && allowPromote && !isEmailConfigured() && (
+      {allowPromote && !isEmailConfigured() && (
         <p className="mt-3 rounded-2xl bg-mustard/30 px-5 py-4 text-ink">
           Emails are off, so guests let in off the waitlist aren’t told. Message them yourself —
           their email and phone are in the list below.

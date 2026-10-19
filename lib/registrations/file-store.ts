@@ -9,6 +9,7 @@ import {
   nextInLine,
   partySize,
   placement,
+  queueTime,
   type GiveSpotResult,
   type NewRegistration,
   type RegisterResult,
@@ -59,6 +60,7 @@ const LATER_FIELDS = {
   birthdate: null,
   occupation: null,
   school: null,
+  queuedAt: null,
 } satisfies Partial<Registration>;
 
 const load = async () =>
@@ -112,7 +114,7 @@ async function fill(rows: Registration[], slug: string): Promise<Registration[]>
   if (!edition || !fillsFromWaitlist(edition, new Date())) return [];
   const queue = rows
     .filter((r) => r.eventSlug === slug && r.status === "waitlist")
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .sort((a, b) => queueTime(a).localeCompare(queueTime(b)));
   return nextInLine(queue, confirmedHeadcount(rows, slug), edition.capacity).map((r) => {
     const promoted: Registration = { ...r, status: "confirmed" };
     rows[rows.indexOf(r)] = promoted;
@@ -188,6 +190,7 @@ export function createFileStore(): RegistrationStore {
           status,
           checkedInAt: null,
           createdAt: new Date().toISOString(),
+          queuedAt: null,
         };
         // Coming back after cancelling: start over with a new code and pass link.
         const next = rows.filter((r) => r !== existing);
@@ -258,7 +261,7 @@ export function createFileStore(): RegistrationStore {
           ...rows[index],
           status,
           // Like a new sign-up, back on the waitlist means the back of the line.
-          ...(status === "waitlist" ? { createdAt: new Date().toISOString() } : {}),
+          ...(status === "waitlist" ? { queuedAt: new Date().toISOString() } : {}),
         };
         await save(rows);
         return rows[index];

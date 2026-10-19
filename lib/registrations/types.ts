@@ -60,11 +60,13 @@ export interface Registration {
   status: RegistrationStatus;
   checkedInAt: string | null;
   createdAt: string;
+  /** When they were put back on the waitlist (see restore); null for everyone else. */
+  queuedAt: string | null;
 }
 
 export type NewRegistration = Omit<
   Registration,
-  "code" | "passToken" | "status" | "checkedInAt" | "createdAt"
+  "code" | "passToken" | "status" | "checkedInAt" | "createdAt" | "queuedAt"
 >;
 
 export type RegisterResult =
@@ -116,7 +118,8 @@ export interface RegistrationStore {
   /**
    * Un-cancels a registration, placing it the way a new sign-up would be
    * against its edition's capacity (onto the waitlist means the back of the
-   * line). Runs under the same lock as register so it can't overbook.
+   * line: queuedAt is set). Runs under the same lock as register so it can't
+   * overbook.
    */
   restore(code: string): Promise<Registration | null>;
   /** Cancels a registration that's still active, then fills from the waitlist. */
@@ -162,6 +165,10 @@ export interface RegistrationStore {
 }
 
 export const partySize = (r: Pick<Registration, "guests">) => 1 + r.guests;
+
+/** A waitlisted guest's place in line: when they signed up, or were put back. */
+export const queueTime = (r: Pick<Registration, "createdAt" | "queuedAt">) =>
+  r.queuedAt ?? r.createdAt;
 
 /**
  * Where a party lands right now. While anyone is waiting, freed spots belong

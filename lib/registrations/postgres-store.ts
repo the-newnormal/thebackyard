@@ -38,6 +38,7 @@ type Row = {
   status: Registration["status"];
   checked_in_at: Date | null;
   created_at: Date;
+  queued_at: Date | null;
 };
 
 const toRegistration = (row: Row): Registration => ({
@@ -63,6 +64,7 @@ const toRegistration = (row: Row): Registration => ({
   status: row.status,
   checkedInAt: row.checked_in_at?.toISOString() ?? null,
   createdAt: row.created_at.toISOString(),
+  queuedAt: row.queued_at?.toISOString() ?? null,
 });
 
 type EditionRow = {
@@ -209,7 +211,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
         ) and exists (
           select 1 from pg_attribute
-          where attrelid = to_regclass('registrations') and attname = 'school' and not attisdropped
+          where attrelid = to_regclass('registrations') and attname = 'queued_at' and not attisdropped
         ) as latest
     `;
     return Boolean(existing?.rls && existing.posters && existing.latest);
@@ -246,7 +248,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           marketing_opt_in boolean not null default false,
           status text not null default 'confirmed',
           checked_in_at timestamptz,
-          created_at timestamptz not null default now()
+          created_at timestamptz not null default now(),
+          queued_at timestamptz
         )
       `;
       // Columns added since launch, for tables created before them.
@@ -258,7 +261,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           add column if not exists race text,
           add column if not exists birthdate date,
           add column if not exists occupation text,
-          add column if not exists school text
+          add column if not exists school text,
+          add column if not exists queued_at timestamptz
       `;
       await tx`
         create unique index if not exists registrations_event_email
@@ -356,7 +360,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     const { used } = await occupancy(tx, slug);
     const queue = await tx<Row[]>`
       select * from registrations where event_slug = ${slug} and status = 'waitlist'
-      order by created_at, id
+      order by coalesce(queued_at, created_at), id
     `;
     const promoted: Registration[] = [];
     for (const row of nextInLine(queue, used, edition.capacity)) {
@@ -544,7 +548,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         const [updated] =
           status === "waitlist"
             ? await tx<Row[]>`
-                update registrations set status = 'waitlist', created_at = now()
+                update registrations set status = 'waitlist', queued_at = now()
                 where code = ${code} returning *
               `
             : await tx<Row[]>`
