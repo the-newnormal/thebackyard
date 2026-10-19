@@ -27,7 +27,15 @@ function FaqItem({ q, children }: { q: string; children: React.ReactNode }) {
   );
 }
 
-function ContactAnswer({ email, instagram }: { email: string; instagram: string }) {
+function ContactAnswer({
+  email,
+  instagram,
+  dpo,
+}: {
+  email: string;
+  instagram: string;
+  dpo: string;
+}) {
   const mail = email && (
     <a href={`mailto:${email}`} className={linkClass}>
       {email}
@@ -38,24 +46,35 @@ function ContactAnswer({ email, instagram }: { email: string; instagram: string 
       @{instagram}
     </a>
   );
+  // Removal requests go to the Data Protection Officer, as the Terms say.
+  const dpoMail = dpo && (
+    <a href={`mailto:${dpo}`} className={linkClass}>
+      {dpo}
+    </a>
+  );
   return (
     <>
-      Questions, or want your details removed?{" "}
-      {mail && insta ? (
+      {(mail || insta) && (
         <>
-          Email {mail} or DM {insta} on Instagram.
+          Questions?{" "}
+          {mail && insta ? (
+            <>
+              Email {mail} or DM {insta} on Instagram.
+            </>
+          ) : mail ? (
+            <>Email {mail}.</>
+          ) : (
+            <>DM {insta} on Instagram.</>
+          )}{" "}
         </>
-      ) : mail ? (
-        <>Email {mail}.</>
-      ) : (
-        <>DM {insta} on Instagram.</>
       )}
+      {dpoMail && <>Want your details removed? Email {dpoMail}.</>}
     </>
   );
 }
 
 export function Faq() {
-  const { email, instagram } = series.contact;
+  const { email, instagram, dpo } = series.contact;
   return (
     <section id="faq" className="mx-auto max-w-3xl px-4 py-24 sm:px-6 sm:py-32">
       <h2 className="font-brush text-7xl leading-none text-forest sm:text-8xl">good to know</h2>
@@ -65,9 +84,9 @@ export function Faq() {
             {faq.a}
           </FaqItem>
         ))}
-        {(email || instagram) && (
+        {(email || instagram || dpo) && (
           <FaqItem q="Got a question?">
-            <ContactAnswer email={email} instagram={instagram} />
+            <ContactAnswer email={email} instagram={instagram} dpo={dpo} />
           </FaqItem>
         )}
       </div>

@@ -985,7 +985,7 @@ export function RegistrationFlow({
         return (
           <form action={submitAction}>
             <Question id={headingId} kicker={KICKERS[step]}>
-              the fine print
+              just before eating!
             </Question>
             {banner}
             <p className="rounded-2xl bg-cream/70 p-5 text-lg leading-relaxed text-ink">

@@ -18,6 +18,8 @@ export const series = {
   contact: {
     email: "contact@backyard.sg",
     instagram: "ourbackyardsg", // handle without the @
+    // The Data Protection Officer in the Terms: for having details removed.
+    dpo: "dpo@backyard.sg",
   },
 };
 
