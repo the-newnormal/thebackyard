@@ -643,7 +643,7 @@ export function RegistrationFlow({
         return (
           <form onSubmit={submitStep} noValidate>
             <Question id={headingId} kicker={KICKERS[step]}>
-              what’s your name?
+              what’s your full name?
             </Question>
             {banner}
             <input
