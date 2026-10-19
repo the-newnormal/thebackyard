@@ -11,13 +11,16 @@ export const series = {
   timeZone: "Asia/Singapore",
   utcOffset: "+08:00",
 
-  // Named in the personal-data consent on the registration form.
+  // Shown in the footer.
   organiser: "The New Normal",
 
   // Optional. Shown in the footer and FAQ when set.
   contact: {
     email: "contact@backyard.sg",
     instagram: "ourbackyardsg", // handle without the @
+    // The Data Protection Officer in the Terms: for having details removed.
+    // content/terms.ts spells it out too (clauses 13.4 and 24); change both.
+    dpo: "dpo@backyard.sg",
   },
 };
 

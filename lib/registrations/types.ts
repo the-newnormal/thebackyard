@@ -55,7 +55,11 @@ export interface Registration {
   dietary: Dietary;
   dietaryNotes: string | null;
   heardFrom: HeardFrom | null;
-  /** Yes to the PDPA question: marketing emails, and planning future programmes. */
+  /**
+   * Agreed to hear about events and programmes when signing up. Everyone who
+   * registers under the Terms (/terms) does; earlier sign-ups answered Yes or
+   * No. Opting out later is recorded separately (see opt-outs.ts).
+   */
   marketingOptIn: boolean;
   status: RegistrationStatus;
   checkedInAt: string | null;
@@ -88,6 +92,12 @@ export type GiveSpotResult =
   | { kind: "full" }
   /** Not (or no longer) on the waitlist. */
   | { kind: "not-waiting" };
+
+/** Someone who asked for no more updates, by contactKey (see opt-outs.ts). */
+export interface OptOut {
+  contact: string;
+  createdAt: string;
+}
 
 export interface Headcount {
   confirmed: number;
@@ -132,6 +142,12 @@ export interface RegistrationStore {
   releaseByPassToken(token: string): Promise<Withdrawal | null>;
   /** Deletes a registration for good, then fills from the waitlist. */
   remove(code: string): Promise<Withdrawal | null>;
+
+  /** Everyone who asked for no more updates, newest first. */
+  listOptOuts(): Promise<OptOut[]>;
+  /** Records an opt-out by contactKey; recording one twice changes nothing. */
+  addOptOut(contact: string): Promise<void>;
+  removeOptOut(contact: string): Promise<void>;
 
   /** Every edition, drafts included, soonest first. */
   listEditions(): Promise<Edition[]>;

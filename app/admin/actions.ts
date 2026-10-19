@@ -15,6 +15,7 @@ import { hasEnded } from "@/lib/editions/select";
 import { getStore } from "@/lib/registrations";
 import { announceSpots } from "@/lib/registrations/announce";
 import { isValidCode } from "@/lib/registrations/code";
+import { contactKey } from "@/lib/registrations/opt-outs";
 
 export async function login(
   _prev: { error?: string },
@@ -92,5 +93,33 @@ export async function deleteRegistration(formData: FormData) {
   if (!code) return;
   const withdrawal = await getStore().remove(code);
   if (withdrawal) announceSpots(withdrawal.promoted);
+  refresh();
+}
+
+export type OptOutState = { error?: string; added?: string; value?: string };
+
+/** Records an emailed "Marketing opt-out" (Terms, Part B clause 7). */
+export async function addOptOut(_prev: OptOutState, formData: FormData): Promise<OptOutState> {
+  await requireAdmin();
+  const value = String(formData.get("contact") ?? "");
+  const contact = contactKey(value);
+  if (!contact) {
+    return {
+      error:
+        "That isn’t an email address or a mobile number. Numbers outside Singapore need their country code, like +60.",
+      value,
+    };
+  }
+  await getStore().addOptOut(contact);
+  refresh();
+  return { added: contact };
+}
+
+/** Sends them updates again, once they've asked for that in writing. */
+export async function removeOptOut(formData: FormData) {
+  await requireAdmin();
+  const contact = contactKey(String(formData.get("contact") ?? ""));
+  if (!contact) return;
+  await getStore().removeOptOut(contact);
   refresh();
 }

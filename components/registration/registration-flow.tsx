@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  startTransition,
   useActionState,
   useCallback,
   useEffect,
@@ -18,7 +19,7 @@ import {
   type OtherDate,
   type RegisterState,
 } from "@/app/register/actions";
-import { pdpaConsent } from "@/content/copy";
+import { signUpConsent } from "@/content/copy";
 import { series } from "@/content/series";
 import {
   MAIN_RACES,
@@ -28,7 +29,12 @@ import {
   schoolsFor,
   SEXES,
 } from "@/content/registration-options";
-import { birthdateProblem, dateIn, parseBirthdate } from "@/lib/registrations/birthdate";
+import {
+  birthdateProblem,
+  dateIn,
+  isUnder18,
+  parseBirthdate,
+} from "@/lib/registrations/birthdate";
 import { EMAIL_PATTERN } from "@/lib/registrations/email";
 import {
   composePhone,
@@ -84,8 +90,8 @@ type Values = {
   /** A country name rather than its code, since +1 is shared. */
   phoneCountry: string;
   phoneLocal: string;
-  /** The PDPA answer, "yes" or "no". */
-  marketingOptIn: string;
+  /** "on" once an under-18 has ticked that their parent or guardian agreed. */
+  guardianConsent: string;
 };
 
 const EMPTY: Values = {
@@ -102,7 +108,7 @@ const EMPTY: Values = {
   email: "",
   phoneCountry: COUNTRIES[0].name,
   phoneLocal: "",
-  marketingOptIn: "",
+  guardianConsent: "",
 };
 
 /**
@@ -202,6 +208,12 @@ function isVerified(values: Values, verified: Verified | null): boolean {
   return expires - Date.now() > 10 * 60 * 1000;
 }
 
+/** Under 18 today, so a parent or guardian has to agree too (Terms 2.2). */
+function isMinor(values: Values): boolean {
+  const iso = parseBirthdate(values.birthdate);
+  return iso !== null && isUnder18(iso, dateIn(series.timeZone));
+}
+
 /** The line under each question, if it has one. */
 function asideFor(step: StepKey, values: Values, verifyPhone: boolean): string | undefined {
   switch (step) {
@@ -254,7 +266,9 @@ function validate(step: StepKey, values: Values): string | null {
     case "code":
       return null;
     case "pdpa":
-      return values.marketingOptIn ? null : "Pick yes or no";
+      return isMinor(values) && values.guardianConsent !== "on"
+        ? signUpConsent.guardian.missing
+        : null;
     default:
       return values[step] ? null : "Pick one";
   }
@@ -281,6 +295,9 @@ function readSaved(key: string): string | null {
   }
 }
 
+/** What's kept in the browser: not the guardian tick, which is given afresh each time. */
+const toKeep = (values: Values): Values => ({ ...values, guardianConsent: "" });
+
 function parseProgress(raw: string | null): Progress | null {
   if (!raw) return null;
   try {
@@ -289,7 +306,8 @@ function parseProgress(raw: string | null): Progress | null {
     for (const key of Object.keys(EMPTY) as (keyof Values)[]) {
       if (typeof saved.values?.[key] === "string") values[key] = saved.values[key];
     }
-    return { step: saved.step, values, savedAt: saved.savedAt };
+    // Not even a tick saved before toKeep left it out.
+    return { step: saved.step, values: toKeep(values), savedAt: saved.savedAt };
   } catch {
     return null;
   }
@@ -362,7 +380,7 @@ export function RegistrationFlow({
 
   useEffect(() => {
     if (!started) return;
-    const progress: Progress = { step, values, savedAt: Date.now() };
+    const progress: Progress = { step, values: toKeep(values), savedAt: Date.now() };
     try {
       if (hasAnswers(values)) localStorage.setItem(key, JSON.stringify(progress));
       else localStorage.removeItem(key);
@@ -509,7 +527,7 @@ export function RegistrationFlow({
 
   /** Keeps the answers for another date's form, before following a link to it. */
   function carryOver(to: string) {
-    const progress: Progress = { step, values, savedAt: Date.now() };
+    const progress: Progress = { step, values: toKeep(values), savedAt: Date.now() };
     try {
       localStorage.setItem(progressKey(to), JSON.stringify(progress));
       localStorage.removeItem(key);
@@ -647,7 +665,7 @@ export function RegistrationFlow({
         return (
           <form onSubmit={submitStep} noValidate>
             <Question id={headingId} kicker={KICKERS[step]}>
-              what’s your name?
+              what’s your full name?
             </Question>
             {banner}
             <input
@@ -736,7 +754,8 @@ export function RegistrationFlow({
             {banner}
             <BirthdateFields
               value={values.birthdate}
-              onChange={(birthdate) => update({ birthdate })}
+              // A guardian's OK was given for the birthdate shown then.
+              onChange={(birthdate) => update({ birthdate, guardianConsent: "" })}
               labelledBy={headingId}
               invalid={Boolean(error)}
               describedBy={describedBy}
@@ -987,41 +1006,51 @@ export function RegistrationFlow({
 
       case "pdpa":
         return (
+          // Submitted by hand rather than through `action`, which resets the
+          // form after a reply and would untick the guardian box behind React.
           <form
-            action={submitAction}
             onSubmit={(e) => {
+              e.preventDefault();
               const problem = validate("pdpa", values);
               if (problem) {
-                e.preventDefault();
                 setErrors((er) => ({ ...er, pdpa: problem }));
+                return;
               }
+              const answers = new FormData(e.currentTarget);
+              startTransition(() => submitAction(answers));
             }}
           >
             <Question id={headingId} kicker={KICKERS[step]}>
-              can we keep you posted?
+              just before eating!
             </Question>
             {banner}
-            <p id={`${headingId}-pdpa`} className="-mt-3 mb-6 text-lg leading-relaxed text-ink">
-              {pdpaConsent}
+            <p className="rounded-2xl bg-cream/70 p-5 text-lg leading-relaxed text-ink">
+              {signUpConsent.body} ({signUpConsent.terms.before}{" "}
+              {/* A new tab, so the answers stay on screen. */}
+              <Link
+                href="/terms"
+                target="_blank"
+                className="font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion"
+              >
+                {signUpConsent.terms.link}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </Link>
+              .)
             </p>
-            <ChoiceGrid
-              labelledBy={headingId}
-              describedBy={[`${headingId}-pdpa`, describedBy].filter(Boolean).join(" ")}
-              options={[
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-              ]}
-              columns={2}
-              value={values.marketingOptIn}
-              onPick={(v) => update({ marketingOptIn: v })}
-            />
+            {isMinor(values) && (
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-forest/20 bg-card p-5 text-lg leading-snug text-ink">
+                <input
+                  type="checkbox"
+                  checked={values.guardianConsent === "on"}
+                  onChange={(e) => update({ guardianConsent: e.target.checked ? "on" : "" })}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? errorId : undefined}
+                  className="mt-0.5 size-6 shrink-0 accent-forest"
+                />
+                <span>{signUpConsent.guardian.label}</span>
+              </label>
+            )}
             <ErrorText id={errorId}>{error}</ErrorText>
-
-            <p className="mt-8 rounded-2xl bg-cream/70 p-5 text-[0.95rem] leading-snug text-ink">
-              By registering, you agree to {series.organiser} collecting and using your details,
-              in line with Singapore’s PDPA, to manage your registration, contact you about
-              this event, and understand who Backyard reaches.
-            </p>
 
             <Answers
               edition={edition}
@@ -1032,8 +1061,8 @@ export function RegistrationFlow({
             <Nav
               onBack={back}
               pending={submitting}
-              nextLabel={waitlist ? "Join the waitlist" : "Save my spot"}
-              pendingLabel="Saving your spot…"
+              nextLabel={signUpConsent.button}
+              pendingLabel={waitlist ? "Joining the waitlist…" : "Saving your spot…"}
             />
           </form>
         );
@@ -1209,7 +1238,7 @@ function Nav({
           onClick={onNext}
           onMouseDown={keepFocus}
           disabled={pending}
-          className="btn btn-primary flex-1 py-4 text-lg"
+          className="btn btn-primary flex-1 px-4 py-4 text-lg sm:px-6"
         >
           {pending && pendingLabel ? (
             pendingLabel
@@ -1258,8 +1287,8 @@ function Answers({
         : "",
     // So the server can tell this form asked for a code.
     verifyPhone: verifyPhone ? "on" : "",
-    marketingOptIn: values.marketingOptIn,
     consent: "on",
+    guardianConsent: isMinor(values) ? values.guardianConsent : "",
   };
   return (
     <>

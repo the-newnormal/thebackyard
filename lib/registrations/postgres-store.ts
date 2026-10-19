@@ -10,6 +10,7 @@ import {
   placement,
   type GiveSpotResult,
   type Headcount,
+  type OptOut,
   type RegisterResult,
   type Registration,
   type RegistrationStore,
@@ -202,10 +203,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
 
   // Checks for the newest table and columns; update it when adding one.
   const upToDate = async (q: postgres.ISql) => {
-    const [existing] = await q<{ rls: boolean | null; posters: boolean; latest: boolean }[]>`
+    const [existing] = await q<
+      { rls: boolean | null; posters: boolean; opt_outs: boolean; latest: boolean }[]
+    >`
       select
         (select relrowsecurity from pg_class where oid = to_regclass('registrations')) as rls,
         to_regclass('posters') is not null as posters,
+        to_regclass('marketing_opt_outs') is not null as opt_outs,
         exists (
           select 1 from pg_attribute
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
@@ -214,7 +218,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('registrations') and attname = 'queued_at' and not attisdropped
         ) as latest
     `;
-    return Boolean(existing?.rls && existing.posters && existing.latest);
+    return Boolean(existing?.rls && existing.posters && existing.opt_outs && existing.latest);
   };
 
   const migrate = async () => {
@@ -228,8 +232,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       // ALTER TABLE locks a table even with nothing to change. A deployment
       // still serving sign-ups holds editions while it reads registrations,
       // so locking editions after registrations here could deadlock with it.
-      const [editionsHave] = await tx<{ note: boolean; rls: boolean }[]>`
+      const [editionsHave] = await tx<{ existed: boolean; note: boolean; rls: boolean }[]>`
         select
+          to_regclass('editions') is not null as existed,
           exists (
             select 1 from pg_attribute
             where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
@@ -321,11 +326,15 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         `;
       }
       if (!editionsHave.rls) await tx`alter table editions enable row level security`;
-      // Sign-ups made before editions existed all belong to this one.
-      await tx`
-        insert into editions ${tx({ slug: FIRST_EDITION_SEED.slug, ...editionColumns(FIRST_EDITION_SEED) })}
-        on conflict (slug) do nothing
-      `;
+      // Sign-ups made before editions existed all belong to this one. Only for
+      // a new table: on an old one the insert would wait on any change to that
+      // row by a deployment still running, while holding registrations.
+      if (!editionsHave.existed) {
+        await tx`
+          insert into editions ${tx({ slug: FIRST_EDITION_SEED.slug, ...editionColumns(FIRST_EDITION_SEED) })}
+          on conflict (slug) do nothing
+        `;
+      }
 
       // Uploaded posters, served by app/posters/[file]/route.ts.
       await tx`
@@ -340,6 +349,15 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         )
       `;
       await tx`alter table posters enable row level security`;
+
+      // Email addresses and numbers that asked for no more updates (opt-outs.ts).
+      await tx`
+        create table if not exists marketing_opt_outs (
+          contact text primary key,
+          created_at timestamptz not null default now()
+        )
+      `;
+      await tx`alter table marketing_opt_outs enable row level security`;
     });
   };
 
@@ -595,6 +613,30 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     async remove(code) {
       await ready();
       return withdraw(code, true);
+    },
+
+    async listOptOuts() {
+      await ready();
+      const rows = await sql<{ contact: string; created_at: Date }[]>`
+        select contact, created_at from marketing_opt_outs order by created_at desc
+      `;
+      return rows.map((row): OptOut => ({
+        contact: row.contact,
+        createdAt: row.created_at.toISOString(),
+      }));
+    },
+
+    async addOptOut(contact) {
+      await ready();
+      await sql`
+        insert into marketing_opt_outs (contact) values (${contact})
+        on conflict (contact) do nothing
+      `;
+    },
+
+    async removeOptOut(contact) {
+      await ready();
+      await sql`delete from marketing_opt_outs where contact = ${contact}`;
     },
 
     async listEditions() {

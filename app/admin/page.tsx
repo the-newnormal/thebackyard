@@ -26,6 +26,7 @@ import {
   type Registration,
 } from "@/lib/registrations";
 import { AGE_GROUPS, ageGroup, ageOnDay, editionDay } from "@/lib/registrations/demographics";
+import { optOutSet, wantsUpdates } from "@/lib/registrations/opt-outs";
 import { AdminHeader } from "./admin-header";
 import { EditionBadge } from "./edition-badge";
 import { setRegistrationWindow } from "./editions/actions";
@@ -82,7 +83,11 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
     );
   }
 
-  const registrations = await getStore().list(edition.slug);
+  const [registrations, optOuts] = await Promise.all([
+    getStore().list(edition.slug),
+    getStore().listOptOuts(),
+  ]);
+  const optedOut = optOutSet(optOuts);
   const state = editionState(edition, now);
   const active = registrations.filter((r) => r.status !== "cancelled");
   const people = (rows: Registration[]) => rows.reduce((sum, r) => sum + partySize(r), 0);
@@ -185,8 +190,8 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         />
         <Stat
           label="Want updates"
-          value={active.filter((r) => r.marketingOptIn).length}
-          note="opted in"
+          value={active.filter((r) => wantsUpdates(r, optedOut)).length}
+          note="not opted out"
           tone="bg-card text-forest border-2 border-forest/15"
         />
       </div>

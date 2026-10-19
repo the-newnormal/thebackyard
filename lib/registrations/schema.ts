@@ -6,8 +6,9 @@ import {
   schoolsFor,
   SEXES,
 } from "@/content/registration-options";
+import { signUpConsent } from "@/content/copy";
 import { series } from "@/content/series";
-import { birthdateProblem, dateIn } from "./birthdate";
+import { birthdateProblem, dateIn, isUnder18 } from "./birthdate";
 import { EMAIL_PATTERN } from "./email";
 import { normalizePhone, PHONE_PATTERN } from "./phone";
 import { DIETARY_OPTIONS } from "./types";
@@ -64,15 +65,24 @@ export const registrationSchema = z
       .max(200, "That email is a bit long")
       .regex(EMAIL_PATTERN, "That email doesn’t look right"),
     phone: phoneSchema,
-    // The PDPA question (content/copy.ts): Yes or No, and either can register.
-    marketingOptIn: z.enum(["yes", "no"], "Pick one").transform((v) => v === "yes"),
     consent: z.literal("on", "We need your OK to hold your details for this event"),
+    guardianConsent: z.string(),
   })
   // Only students are asked for a school, from the list for their occupation.
   .superRefine((v, ctx) => {
     const schools = schoolsFor(v.occupation);
     if (schools ? !schools.includes(v.school) : v.school !== "") {
       ctx.addIssue({ code: "custom", path: ["school"], message: "Pick your school" });
+    }
+  })
+  // Under-18s sign up with a parent's or guardian's OK (Terms 2.2).
+  .superRefine((v, ctx) => {
+    if (isUnder18(v.birthdate, dateIn(series.timeZone)) && v.guardianConsent !== "on") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["guardianConsent"],
+        message: signUpConsent.guardian.missing,
+      });
     }
   })
   // A school under "Others" is saved by the name they gave it, if any.
