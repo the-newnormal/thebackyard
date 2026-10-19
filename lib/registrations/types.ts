@@ -106,6 +106,10 @@ export interface RegistrationStore {
   register(input: NewRegistration): Promise<RegisterResult>;
   getByCode(code: string): Promise<Registration | null>;
   getByPassToken(token: string): Promise<Registration | null>;
+  /**
+   * Newest first, in exactly the waitlist's order backwards (queueTime, then
+   * the store's tie-break), so the waitlisted ones reversed are the line.
+   */
   list(eventSlug: string): Promise<Registration[]>;
   headcount(eventSlug: string): Promise<Headcount>;
   /**

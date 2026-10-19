@@ -14,15 +14,20 @@ export function announceSpots(promoted: Registration[]) {
   after(async () => {
     const store = getStore();
     for (const { code, passToken, eventSlug } of promoted) {
-      // Fresh each time: the date can be called off, or the guest drop out,
-      // while earlier emails go out.
-      const [edition, registration] = await Promise.all([
-        store.getEdition(eventSlug),
-        store.getByCode(code),
-      ]);
-      if (!edition || edition.status !== "published" || hasEnded(edition, new Date())) return;
-      if (registration?.passToken !== passToken || registration.status !== "confirmed") continue;
-      await sendConfirmationEmail(registration, edition);
+      try {
+        // Fresh each time: the date can be called off, or the guest drop out,
+        // while earlier emails go out.
+        const [edition, registration] = await Promise.all([
+          store.getEdition(eventSlug),
+          store.getByCode(code),
+        ]);
+        if (!edition || edition.status !== "published" || hasEnded(edition, new Date())) return;
+        if (registration?.passToken !== passToken || registration.status !== "confirmed") continue;
+        await sendConfirmationEmail(registration, edition);
+      } catch (error) {
+        // One failed lookup shouldn't cost everyone behind them their email.
+        console.error("Waitlist spot email failed", error);
+      }
     }
   });
 }

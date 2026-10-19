@@ -474,7 +474,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await ready();
       const rows = await sql<Row[]>`
         select * from registrations where event_slug = ${eventSlug}
-        order by created_at desc
+        order by coalesce(queued_at, created_at) desc, id desc
       `;
       return rows.map(toRegistration);
     },

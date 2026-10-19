@@ -207,9 +207,11 @@ export function createFileStore(): RegistrationStore {
     },
 
     async list(eventSlug) {
+      // The waitlist's order (as fill sorts it), backwards.
       return (await load())
         .filter((r) => r.eventSlug === eventSlug)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        .sort((a, b) => queueTime(a).localeCompare(queueTime(b)))
+        .reverse();
     },
 
     async headcount(eventSlug) {

@@ -9,7 +9,6 @@ import {
   DIETARY_OPTIONS,
   HEARD_FROM_OPTIONS,
   partySize,
-  queueTime,
   type Registration,
 } from "@/lib/registrations/types";
 import {
@@ -63,12 +62,9 @@ export function RegistrationList({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("active");
 
-  // Place in line: freed spots go to whoever signed up first.
+  // Place in line: the store lists the waitlist's order backwards.
   const queue = useMemo(
-    () =>
-      registrations
-        .filter((r) => r.status === "waitlist")
-        .sort((a, b) => queueTime(a).localeCompare(queueTime(b))),
+    () => registrations.filter((r) => r.status === "waitlist").reverse(),
     [registrations],
   );
   const places = useMemo(() => new Map(queue.map((r, i) => [r.code, i + 1])), [queue]);
