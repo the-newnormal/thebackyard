@@ -306,7 +306,8 @@ function parseProgress(raw: string | null): Progress | null {
     for (const key of Object.keys(EMPTY) as (keyof Values)[]) {
       if (typeof saved.values?.[key] === "string") values[key] = saved.values[key];
     }
-    return { step: saved.step, values, savedAt: saved.savedAt };
+    // Not even a tick saved before toKeep left it out.
+    return { step: saved.step, values: toKeep(values), savedAt: saved.savedAt };
   } catch {
     return null;
   }
