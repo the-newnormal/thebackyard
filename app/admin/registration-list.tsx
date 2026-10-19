@@ -45,12 +45,15 @@ function matches(r: Registration, filter: Filter): boolean {
 export function RegistrationList({
   registrations,
   allowPromote,
+  autoFill,
   spotsLeft,
   eventDay,
 }: {
   registrations: Registration[];
   /** False once the date is over or called off. */
   allowPromote: boolean;
+  /** True until it starts: freed spots go to the waitlist by themselves. */
+  autoFill: boolean;
   /** People who can still be confirmed; null with no limit. */
   spotsLeft: number | null;
   /** The date's day (YYYY-MM-DD), for ages on the day. */
@@ -133,6 +136,7 @@ export function RegistrationList({
             registration={r}
             place={places.get(r.code) ?? 0}
             allowPromote={allowPromote}
+            autoFill={autoFill}
             spotsLeft={spotsLeft}
             eventDay={eventDay}
           />
@@ -146,6 +150,7 @@ function Row({
   registration: r,
   place,
   allowPromote,
+  autoFill,
   spotsLeft,
   eventDay,
 }: {
@@ -153,6 +158,7 @@ function Row({
   /** 1 for next in line; 0 if not waiting. */
   place: number;
   allowPromote: boolean;
+  autoFill: boolean;
   spotsLeft: number | null;
   eventDay: string;
 }) {
@@ -247,7 +253,13 @@ function Row({
             <button
               type="submit"
               disabled={!fits}
-              title={fits ? undefined : "No spots free. Raise the limit on the date’s page first."}
+              title={
+                fits
+                  ? undefined
+                  : autoFill
+                    ? "No spots free. The next one to open up goes to #1 in line."
+                    : "No spots free. Raise the limit on the date’s page first."
+              }
               className="rounded-full border-2 border-forest/20 px-4 py-2 text-sm font-bold text-forest hover:border-forest disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-forest/20"
             >
               Give a spot
@@ -268,7 +280,7 @@ function Row({
           <form action={cancelRegistration}>
             <input type="hidden" name="code" value={r.code} />
             <ConfirmButton
-              confirm={`Cancel ${r.name}'s registration? If anyone's waiting, the spot goes to whoever's next.`}
+              confirm={`Cancel ${r.name}'s registration?${autoFill ? " If anyone's waiting, the spot goes to whoever's next." : ""}`}
               className="rounded-full px-3 py-2 text-sm font-semibold text-muted hover:text-red"
             >
               Cancel

@@ -540,9 +540,16 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         const capacity = edition ? edition.capacity : null;
         const { used, waiting } = await occupancy(tx, row.event_slug);
         const status = placement(partySize(row), { confirmed: used, waiting: waiting > 0 }, capacity);
-        const [updated] = await tx<Row[]>`
-          update registrations set status = ${status} where code = ${code} returning *
-        `;
+        // Like a new sign-up, back on the waitlist means the back of the line.
+        const [updated] =
+          status === "waitlist"
+            ? await tx<Row[]>`
+                update registrations set status = 'waitlist', created_at = now()
+                where code = ${code} returning *
+              `
+            : await tx<Row[]>`
+                update registrations set status = ${status} where code = ${code} returning *
+              `;
         return toRegistration(updated);
       });
     },

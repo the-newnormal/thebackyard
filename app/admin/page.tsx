@@ -9,7 +9,12 @@ import {
   SEXES,
 } from "@/content/registration-options";
 import { requireAdmin } from "@/lib/admin-auth";
-import { adminFocus, editionState, isRegistrationOpen } from "@/lib/editions/select";
+import {
+  adminFocus,
+  editionState,
+  fillsFromWaitlist,
+  isRegistrationOpen,
+} from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured } from "@/lib/email";
 import { eventDateLong, eventDateShort, eventTimeRange, formatMoment } from "@/lib/format";
@@ -228,6 +233,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
       <RegistrationList
         registrations={registrations}
         allowPromote={allowPromote}
+        autoFill={fillsFromWaitlist(edition, now)}
         spotsLeft={capacity === null ? null : Math.max(0, capacity - people(confirmed))}
         eventDay={day}
       />

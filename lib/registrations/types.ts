@@ -115,8 +115,8 @@ export interface RegistrationStore {
   setCheckedIn(code: string, checkedInAt: string | null): Promise<Registration | null>;
   /**
    * Un-cancels a registration, placing it the way a new sign-up would be
-   * against its edition's capacity. Runs under the same lock as register so it
-   * can't overbook.
+   * against its edition's capacity (onto the waitlist means the back of the
+   * line). Runs under the same lock as register so it can't overbook.
    */
   restore(code: string): Promise<Registration | null>;
   /** Cancels a registration that's still active, then fills from the waitlist. */

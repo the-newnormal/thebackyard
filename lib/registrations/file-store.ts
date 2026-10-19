@@ -254,7 +254,12 @@ export function createFileStore(): RegistrationStore {
           },
           capacity,
         );
-        rows[index] = { ...rows[index], status };
+        rows[index] = {
+          ...rows[index],
+          status,
+          // Like a new sign-up, back on the waitlist means the back of the line.
+          ...(status === "waitlist" ? { createdAt: new Date().toISOString() } : {}),
+        };
         await save(rows);
         return rows[index];
       }),
