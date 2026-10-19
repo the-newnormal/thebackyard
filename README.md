@@ -109,14 +109,20 @@ automatically on first use.
 - Capacity counts people (registrants, plus friends added on earlier sign-ups,
   when the form still offered that). Once it's reached, new sign-ups
   join the waitlist, and while anyone is waiting, freed spots stay with the
-  waitlist instead of going to newcomers. In Postgres, sign-ups are serialised
-  with an advisory lock, so two people can't both take the last spot.
+  waitlist instead of going to newcomers. Until the event starts, a spot that
+  opens up (a guest releases theirs, an organiser cancels or deletes one, or
+  the limit goes up) goes straight to whoever has waited longest, and they're
+  emailed. Nobody is skipped: a party too big for the free spots holds up
+  those behind it. In Postgres, everything that changes who's confirmed is
+  serialised with a per-date advisory lock, so two people can't both take the
+  last spot.
 - Guests can release their own spot from their pass. Re-registering afterwards
   issues a new pass link, so old links stop working.
 - Organisers can check in confirmed guests, give a waitlisted guest a spot
-  (which emails them, if email is set up), cancel, restore or permanently
-  delete (for personal-data requests) from `/admin`. Once a date is over or
-  called off, guests can't release their spot and nobody can be given one.
+  out of turn while there's room (which emails them, if email is set up),
+  cancel, restore or permanently delete (for personal-data requests) from
+  `/admin`. Once a date is over or called off, guests can't release their
+  spot and nobody can be given one.
 - The tables are created on first use (and new columns added to existing ones)
   with row-level security enabled and no policies, so on Supabase they aren't
   readable through the REST API; the app connects as the table owner.

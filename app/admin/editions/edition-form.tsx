@@ -248,9 +248,9 @@ function Fields({
           />
         </Field>
         <p className="text-sm text-muted">
-          Once it’s full, new sign-ups join the waitlist. Lowering the limit keeps everyone
-          already confirmed; raising it doesn’t move anyone off the waitlist, so use “Give a
-          spot” on the guest list.
+          Once it’s full, new sign-ups join the waitlist. Until it starts, any spot that opens
+          up (someone cancels, or you raise the limit) goes to whoever has waited longest, and
+          they’re emailed. Lowering the limit keeps everyone already confirmed.
         </p>
       </Group>
 

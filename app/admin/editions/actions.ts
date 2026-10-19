@@ -10,6 +10,7 @@ import { editionState, hasEnded, isRegistrationOpen } from "@/lib/editions/selec
 import type { Edition, EditionFields, StoredPoster } from "@/lib/editions/types";
 import { eventDateShort } from "@/lib/format";
 import { getStore } from "@/lib/registrations";
+import { announceSpots } from "@/lib/registrations/announce";
 
 // Every change here shows on the homepage straight away: the public schedule
 // is cached under the "editions" tag.
@@ -141,6 +142,8 @@ export async function saveEdition(
   if (result.kind === "changed") return stale();
   if (result.kind === "date-taken") return taken(result.edition);
   updateTag("editions");
+  // A higher limit (or none) lets people in off the waitlist.
+  announceSpots(await store.fillFromWaitlist(existing.slug));
   return {
     saved: true,
     message:
@@ -181,7 +184,10 @@ export async function setEditionStatus(formData: FormData) {
   if (!patch) return;
   // Refused (unchanged) if it changed meanwhile or would share a day with another date.
   const result = await store.updateEdition(edition.slug, patch, edition.updatedAt);
-  if (result.kind === "updated") updateTag("editions");
+  if (result.kind !== "updated") return;
+  updateTag("editions");
+  // Spots freed while it was called off go to the waitlist once it's back on.
+  announceSpots(await store.fillFromWaitlist(edition.slug));
 }
 
 /**

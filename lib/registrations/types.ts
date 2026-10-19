@@ -73,9 +73,19 @@ export type RegisterResult =
   /** The edition isn't taking sign-ups (any more). */
   | { kind: "closed" };
 
-export type RegistrationPatch = Partial<
-  Pick<Registration, "status" | "checkedInAt">
->;
+/** A registration cancelled or deleted, and who got the spots that freed. */
+export interface Withdrawal {
+  registration: Registration;
+  /** Waitlisted guests just given a spot, longest-waiting first. */
+  promoted: Registration[];
+}
+
+export type GiveSpotResult =
+  | { kind: "given"; registration: Registration }
+  /** Their party doesn't fit in the spots left. */
+  | { kind: "full" }
+  /** Not (or no longer) on the waitlist. */
+  | { kind: "not-waiting" };
 
 export interface Headcount {
   confirmed: number;
@@ -96,7 +106,11 @@ export interface RegistrationStore {
   getByPassToken(token: string): Promise<Registration | null>;
   list(eventSlug: string): Promise<Registration[]>;
   headcount(eventSlug: string): Promise<Headcount>;
-  update(code: string, patch: RegistrationPatch): Promise<Registration | null>;
+  /**
+   * "Give a spot": moves a waitlisted guest in, ahead of their turn if need
+   * be, as long as their party fits. Runs under the same lock as register.
+   */
+  giveSpot(code: string): Promise<GiveSpotResult>;
   /** Checks in a confirmed guest, or undoes a check-in; never changes status. */
   setCheckedIn(code: string, checkedInAt: string | null): Promise<Registration | null>;
   /**
@@ -105,9 +119,17 @@ export interface RegistrationStore {
    * can't overbook.
    */
   restore(code: string): Promise<Registration | null>;
-  /** Cancels the registration this pass token belongs to, if still active. */
-  releaseByPassToken(token: string): Promise<Registration | null>;
-  remove(code: string): Promise<boolean>;
+  /** Cancels a registration that's still active, then fills from the waitlist. */
+  cancel(code: string): Promise<Withdrawal | null>;
+  /** The same, for the registration this pass token belongs to. */
+  releaseByPassToken(token: string): Promise<Withdrawal | null>;
+  /** Deletes a registration for good, then fills from the waitlist. */
+  remove(code: string): Promise<Withdrawal | null>;
+  /**
+   * Gives free spots to the waitlist in sign-up order (see nextInLine), until
+   * the event starts. Runs under the same lock as register; returns who got one.
+   */
+  fillFromWaitlist(eventSlug: string): Promise<Registration[]>;
 
   /** Every edition, drafts included, soonest first. */
   listEditions(): Promise<Edition[]>;
@@ -153,4 +175,24 @@ export function placement(
   return capacity === null || (!waiting && confirmed + party <= capacity)
     ? "confirmed"
     : "waitlist";
+}
+
+/**
+ * Who gets the free spots: waitlisted parties in sign-up order (`queue` is
+ * oldest first), while the next one fits. Nobody is skipped, so a party too
+ * big for what's free holds up those behind it.
+ */
+export function nextInLine<T extends Pick<Registration, "guests">>(
+  queue: T[],
+  confirmed: number,
+  capacity: number | null,
+): T[] {
+  const given: T[] = [];
+  let used = confirmed;
+  for (const party of queue) {
+    used += partySize(party);
+    if (capacity !== null && used > capacity) break;
+    given.push(party);
+  }
+  return given;
 }

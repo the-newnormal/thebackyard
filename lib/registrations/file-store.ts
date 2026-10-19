@@ -2,16 +2,19 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 import { FIRST_EDITION_SEED } from "@/content/series";
 import { dayClash, sameDayEdition, slugFor } from "../editions/plan";
-import { isRegistrationOpen } from "../editions/select";
+import { fillsFromWaitlist, isRegistrationOpen } from "../editions/select";
 import type { Edition, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
 import {
+  nextInLine,
   partySize,
   placement,
+  type GiveSpotResult,
   type NewRegistration,
   type RegisterResult,
   type Registration,
   type RegistrationStore,
+  type Withdrawal,
 } from "./types";
 
 // Local-development store: a JSON file in .data/. Not for production —
@@ -103,6 +106,36 @@ const updateWhere = (
     return rows[index];
   });
 
+/** Gives free spots on `slug` to its waitlist, changing `rows`. Call inside exclusive(). */
+async function fill(rows: Registration[], slug: string): Promise<Registration[]> {
+  const edition = (await loadEditions()).find((e) => e.slug === slug);
+  if (!edition || !fillsFromWaitlist(edition, new Date())) return [];
+  const queue = rows
+    .filter((r) => r.eventSlug === slug && r.status === "waitlist")
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return nextInLine(queue, confirmedHeadcount(rows, slug), edition.capacity).map((r) => {
+    const promoted: Registration = { ...r, status: "confirmed" };
+    rows[rows.indexOf(r)] = promoted;
+    return promoted;
+  });
+}
+
+/** Cancels or deletes the first registration matching `match`, then fills the spot it freed. */
+const withdraw = (match: (r: Registration) => boolean, remove: boolean) =>
+  exclusive(async (): Promise<Withdrawal | null> => {
+    const rows = await load();
+    const index = rows.findIndex((r) => match(r) && (remove || r.status !== "cancelled"));
+    if (index === -1) return null;
+    const registration: Registration = remove
+      ? rows[index]
+      : { ...rows[index], status: "cancelled", checkedInAt: null };
+    if (remove) rows.splice(index, 1);
+    else rows[index] = registration;
+    const promoted = await fill(rows, registration.eventSlug);
+    await save(rows);
+    return { registration, promoted };
+  });
+
 /** Deletes posters no edition shows. Call inside exclusive(). */
 async function sweep() {
   const used = new Set(
@@ -183,11 +216,21 @@ export function createFileStore(): RegistrationStore {
       return { confirmed: sum("confirmed"), waitlist: sum("waitlist") };
     },
 
-    update: (code, patch) =>
-      updateWhere(
-        (r) => r.code === code,
-        (r) => ({ ...r, ...patch }),
-      ),
+    giveSpot: (code) =>
+      exclusive(async (): Promise<GiveSpotResult> => {
+        const rows = await load();
+        const index = rows.findIndex((r) => r.code === code && r.status === "waitlist");
+        if (index === -1) return { kind: "not-waiting" };
+        const slug = rows[index].eventSlug;
+        const edition = (await loadEditions()).find((e) => e.slug === slug);
+        const capacity = edition ? edition.capacity : null;
+        if (capacity !== null && confirmedHeadcount(rows, slug) + partySize(rows[index]) > capacity) {
+          return { kind: "full" };
+        }
+        rows[index] = { ...rows[index], status: "confirmed" };
+        await save(rows);
+        return { kind: "given", registration: rows[index] };
+      }),
 
     setCheckedIn: (code, checkedInAt) =>
       updateWhere(
@@ -216,19 +259,18 @@ export function createFileStore(): RegistrationStore {
         return rows[index];
       }),
 
-    releaseByPassToken: (token) =>
-      updateWhere(
-        (r) => r.passToken === token && r.status !== "cancelled",
-        (r) => ({ ...r, status: "cancelled", checkedInAt: null }),
-      ),
+    cancel: (code) => withdraw((r) => r.code === code, false),
 
-    remove: (code) =>
+    releaseByPassToken: (token) => withdraw((r) => r.passToken === token, false),
+
+    remove: (code) => withdraw((r) => r.code === code, true),
+
+    fillFromWaitlist: (slug) =>
       exclusive(async () => {
         const rows = await load();
-        const next = rows.filter((r) => r.code !== code);
-        if (next.length === rows.length) return false;
-        await save(next);
-        return true;
+        const promoted = await fill(rows, slug);
+        if (promoted.length > 0) await save(rows);
+        return promoted;
       }),
 
     listEditions: loadEditions,

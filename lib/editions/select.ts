@@ -28,6 +28,10 @@ export function isRegistrationOpen(edition: Edition, now: Date): boolean {
 
 export const hasEnded = (edition: Edition, now: Date) => now.getTime() >= ms(edition.endsAt);
 
+/** Until it starts, spots that open up go to the waitlist; then organisers decide. */
+export const fillsFromWaitlist = (edition: Edition, now: Date) =>
+  edition.status === "published" && now.getTime() < ms(edition.startsAt);
+
 export function editionState(edition: Edition, now: Date): EditionState {
   if (edition.status === "draft") return "draft";
   if (edition.status === "cancelled") return "cancelled";
