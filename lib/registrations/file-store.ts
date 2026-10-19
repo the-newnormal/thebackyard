@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 import { FIRST_EDITION_SEED } from "@/content/series";
 import { dayClash, sameDayEdition, slugFor } from "../editions/plan";
-import { fillsFromWaitlist, isRegistrationOpen } from "../editions/select";
+import { fillsFromWaitlist, isRegistrationOpen, opensSpots } from "../editions/select";
 import type { Edition, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
 import {
@@ -273,14 +273,6 @@ export function createFileStore(): RegistrationStore {
 
     remove: (code) => withdraw((r) => r.code === code, true),
 
-    fillFromWaitlist: (slug) =>
-      exclusive(async () => {
-        const rows = await load();
-        const promoted = await fill(rows, slug);
-        if (promoted.length > 0) await save(rows);
-        return promoted;
-      }),
-
     listEditions: loadEditions,
 
     async getEdition(slug) {
@@ -314,7 +306,10 @@ export function createFileStore(): RegistrationStore {
         if (clash) return { kind: "date-taken" as const, edition: clash };
         editions[index] = { ...current, ...patch, updatedAt: new Date().toISOString() };
         await saveEditions(editions);
-        return { kind: "updated" as const, edition: editions[index] };
+        const rows = await load();
+        const promoted = opensSpots(patch) ? await fill(rows, slug) : [];
+        if (promoted.length > 0) await save(rows);
+        return { kind: "updated" as const, edition: editions[index], promoted };
       }),
 
     deleteEdition: (slug) =>

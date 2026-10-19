@@ -1,6 +1,8 @@
 // One Backyard date ("edition"). Registrations belong to an edition through
 // `Registration.eventSlug`.
 
+import type { Registration } from "../registrations/types";
+
 export type EditionStatus = "draft" | "published" | "cancelled";
 
 export interface Venue {
@@ -56,7 +58,8 @@ export type CreateEditionResult =
   | { kind: "date-taken"; edition: Edition };
 
 export type UpdateEditionResult =
-  | { kind: "updated"; edition: Edition }
+  /** `promoted`: waitlisted guests the change let in, to be told. */
+  | { kind: "updated"; edition: Edition; promoted: Registration[] }
   | { kind: "not-found" }
   /** It changed after the version the caller saw. */
   | { kind: "changed" }

@@ -143,7 +143,7 @@ export async function saveEdition(
   if (result.kind === "date-taken") return taken(result.edition);
   updateTag("editions");
   // A higher limit (or none) lets people in off the waitlist.
-  announceSpots(await store.fillFromWaitlist(existing.slug));
+  announceSpots(result.promoted);
   return {
     saved: true,
     message:
@@ -187,7 +187,7 @@ export async function setEditionStatus(formData: FormData) {
   if (result.kind !== "updated") return;
   updateTag("editions");
   // Spots freed while it was called off go to the waitlist once it's back on.
-  announceSpots(await store.fillFromWaitlist(edition.slug));
+  announceSpots(result.promoted);
 }
 
 /**

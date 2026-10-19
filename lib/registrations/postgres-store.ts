@@ -1,7 +1,7 @@
 import postgres from "postgres";
 import { FIRST_EDITION_SEED } from "@/content/series";
 import { dayClash, sameDayEdition, slugFor } from "../editions/plan";
-import { fillsFromWaitlist, isRegistrationOpen } from "../editions/select";
+import { fillsFromWaitlist, isRegistrationOpen, opensSpots } from "../editions/select";
 import type { Edition, EditionFields, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
 import {
@@ -548,7 +548,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         const [updated] =
           status === "waitlist"
             ? await tx<Row[]>`
-                update registrations set status = 'waitlist', queued_at = now()
+                update registrations set status = 'waitlist', queued_at = clock_timestamp()
                 where code = ${code} returning *
               `
             : await tx<Row[]>`
@@ -574,14 +574,6 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     async remove(code) {
       await ready();
       return withdraw(code, true);
-    },
-
-    async fillFromWaitlist(eventSlug) {
-      await ready();
-      return sql.begin(async (tx) => {
-        await lockEvent(tx, eventSlug);
-        return fill(tx, eventSlug);
-      });
     },
 
     async listEditions() {
@@ -616,6 +608,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await ready();
       const columns = editionColumns(patch);
       return sql.begin(async (tx) => {
+        // The sign-up lock first, in the same order as unpublish and delete,
+        // so a new limit and the fill it allows land as one.
+        await lockEvent(tx, slug);
         // The same lock as createEdition: day checks see every other change.
         await tx`select pg_advisory_xact_lock(hashtext('backyard:editions'))`;
         // And the row itself, so an unpublish or delete can't land in between.
@@ -627,14 +622,16 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         if (ifVersion && current.updatedAt !== ifVersion) return { kind: "changed" as const };
         const clash = dayClash(editions, current, { ...current, ...patch });
         if (clash) return { kind: "date-taken" as const, edition: clash };
-        if (Object.keys(columns).length === 0) return { kind: "updated" as const, edition: current };
+        if (Object.keys(columns).length === 0) {
+          return { kind: "updated" as const, edition: current, promoted: [] };
+        }
         const [row] = await tx<EditionRow[]>`
           update editions set ${tx({ ...columns, updated_at: new Date() })}
           where slug = ${slug} returning *
         `;
-        return row
-          ? { kind: "updated" as const, edition: toEdition(row) }
-          : { kind: "not-found" as const };
+        if (!row) return { kind: "not-found" as const };
+        const promoted = opensSpots(patch) ? await fill(tx, slug) : [];
+        return { kind: "updated" as const, edition: toEdition(row), promoted };
       });
     },
 

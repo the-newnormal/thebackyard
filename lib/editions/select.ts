@@ -1,4 +1,4 @@
-import type { Edition } from "./types";
+import type { Edition, EditionFields } from "./types";
 
 // Pure functions of (editions, now): which edition the homepage, /register and
 // /admin are about at a given moment.
@@ -31,6 +31,10 @@ export const hasEnded = (edition: Edition, now: Date) => now.getTime() >= ms(edi
 /** Until it starts, spots that open up go to the waitlist; then organisers decide. */
 export const fillsFromWaitlist = (edition: Edition, now: Date) =>
   edition.status === "published" && now.getTime() < ms(edition.startsAt);
+
+/** Edition changes that can open spots to the waitlist: the limit, status or start. */
+export const opensSpots = (patch: Partial<EditionFields>) =>
+  patch.capacity !== undefined || patch.status !== undefined || patch.startsAt !== undefined;
 
 export function editionState(edition: Edition, now: Date): EditionState {
   if (edition.status === "draft") return "draft";

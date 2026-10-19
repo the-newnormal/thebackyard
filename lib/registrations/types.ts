@@ -128,11 +128,6 @@ export interface RegistrationStore {
   releaseByPassToken(token: string): Promise<Withdrawal | null>;
   /** Deletes a registration for good, then fills from the waitlist. */
   remove(code: string): Promise<Withdrawal | null>;
-  /**
-   * Gives free spots to the waitlist in sign-up order (see nextInLine), until
-   * the event starts. Runs under the same lock as register; returns who got one.
-   */
-  fillFromWaitlist(eventSlug: string): Promise<Registration[]>;
 
   /** Every edition, drafts included, soonest first. */
   listEditions(): Promise<Edition[]>;
@@ -143,7 +138,8 @@ export interface RegistrationStore {
    * Applies `patch` unless (with `ifVersion`) the edition has changed since
    * that `updatedAt`, or the result would put two dates on one day: none may
    * share a day with another that isn't called off, and none may move onto a
-   * day that has any other date.
+   * day that has any other date. A change that can open spots (opensSpots)
+   * fills from the waitlist in the same step, under the sign-up lock.
    */
   updateEdition(
     slug: string,
