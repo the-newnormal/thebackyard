@@ -11,7 +11,13 @@ import {
   partySize,
   type Registration,
 } from "@/lib/registrations/types";
-import { deleteRegistration, restoreRegistration, setCheckedIn, setStatus } from "./actions";
+import {
+  cancelRegistration,
+  deleteRegistration,
+  giveSpot,
+  restoreRegistration,
+  setCheckedIn,
+} from "./actions";
 
 const FILTERS = [
   { key: "active", label: "All active" },
@@ -39,23 +45,38 @@ function matches(r: Registration, filter: Filter): boolean {
 export function RegistrationList({
   registrations,
   allowPromote,
+  autoFill,
+  spotsLeft,
   eventDay,
 }: {
   registrations: Registration[];
   /** False once the date is over or called off. */
   allowPromote: boolean;
+  /** True until it starts: freed spots go to the waitlist by themselves. */
+  autoFill: boolean;
+  /** People who can still be confirmed; null with no limit. */
+  spotsLeft: number | null;
   /** The date's day (YYYY-MM-DD), for ages on the day. */
   eventDay: string;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("active");
 
+  // Place in line: the store lists the waitlist's order backwards.
+  const queue = useMemo(
+    () => registrations.filter((r) => r.status === "waitlist").reverse(),
+    [registrations],
+  );
+  const places = useMemo(() => new Map(queue.map((r, i) => [r.code, i + 1])), [queue]);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     // Only treat the query as a phone number if it looks like one, so a code
     // like "N299QS" doesn't also match every phone containing "299".
     const phoneQuery = /^[\d\s()+-]+$/.test(q) ? normalizePhone(q) : "";
-    return registrations.filter(
+    // The waitlist reads top to bottom in the order spots are given out.
+    const rows = filter === "waitlist" ? queue : registrations;
+    return rows.filter(
       (r) =>
         matches(r, filter) &&
         (!q ||
@@ -65,7 +86,7 @@ export function RegistrationList({
           (phoneQuery !== "" && normalizePhone(r.phone).includes(phoneQuery)) ||
           r.code.toLowerCase().includes(q)),
     );
-  }, [registrations, query, filter]);
+  }, [registrations, queue, query, filter]);
 
   return (
     <section className="mt-8">
@@ -107,7 +128,15 @@ export function RegistrationList({
           </li>
         )}
         {visible.map((r) => (
-          <Row key={r.code} registration={r} allowPromote={allowPromote} eventDay={eventDay} />
+          <Row
+            key={r.code}
+            registration={r}
+            place={places.get(r.code) ?? 0}
+            allowPromote={allowPromote}
+            autoFill={autoFill}
+            spotsLeft={spotsLeft}
+            eventDay={eventDay}
+          />
         ))}
       </ul>
     </section>
@@ -116,14 +145,22 @@ export function RegistrationList({
 
 function Row({
   registration: r,
+  place,
   allowPromote,
+  autoFill,
+  spotsLeft,
   eventDay,
 }: {
   registration: Registration;
+  /** 1 for next in line; 0 if not waiting. */
+  place: number;
   allowPromote: boolean;
+  autoFill: boolean;
+  spotsLeft: number | null;
   eventDay: string;
 }) {
   const checkedIn = Boolean(r.checkedInAt);
+  const fits = spotsLeft === null || partySize(r) <= spotsLeft;
   const age = ageOnDay(r, eventDay);
   const about = [
     r.residentStatus,
@@ -141,7 +178,7 @@ function Row({
           <span className="rounded-md bg-cream px-2 py-0.5 font-mono text-sm font-bold tracking-wider text-forest">
             {r.code}
           </span>
-          <StatusBadge registration={r} />
+          <StatusBadge registration={r} place={place} />
         </div>
         <p className="mt-1 text-sm text-muted">
           <a href={`mailto:${r.email}`} className="hover:text-forest hover:underline">
@@ -208,7 +245,23 @@ function Row({
           </form>
         )}
         {r.status === "waitlist" && allowPromote && (
-          <StatusButton code={r.code} status="confirmed" label="Give a spot" />
+          <form action={giveSpot}>
+            <input type="hidden" name="code" value={r.code} />
+            <button
+              type="submit"
+              disabled={!fits}
+              title={
+                fits
+                  ? undefined
+                  : autoFill
+                    ? "No spots free. The next one to open up goes to #1 in line."
+                    : "No spots free. Raise the limit on the date’s page first."
+              }
+              className="rounded-full border-2 border-forest/20 px-4 py-2 text-sm font-bold text-forest hover:border-forest disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-forest/20"
+            >
+              Give a spot
+            </button>
+          </form>
         )}
         {r.status === "cancelled" ? (
           <form action={restoreRegistration}>
@@ -221,11 +274,10 @@ function Row({
             </button>
           </form>
         ) : (
-          <form action={setStatus}>
+          <form action={cancelRegistration}>
             <input type="hidden" name="code" value={r.code} />
-            <input type="hidden" name="status" value="cancelled" />
             <ConfirmButton
-              confirm={`Cancel ${r.name}'s registration?`}
+              confirm={`Cancel ${r.name}'s registration?${autoFill ? " If anyone's waiting, the spot goes to whoever's next." : ""}`}
               className="rounded-full px-3 py-2 text-sm font-semibold text-muted hover:text-red"
             >
               Cancel
@@ -246,22 +298,7 @@ function Row({
   );
 }
 
-function StatusButton({ code, status, label }: { code: string; status: string; label: string }) {
-  return (
-    <form action={setStatus}>
-      <input type="hidden" name="code" value={code} />
-      <input type="hidden" name="status" value={status} />
-      <button
-        type="submit"
-        className="rounded-full border-2 border-forest/20 px-4 py-2 text-sm font-bold text-forest hover:border-forest"
-      >
-        {label}
-      </button>
-    </form>
-  );
-}
-
-function StatusBadge({ registration: r }: { registration: Registration }) {
+function StatusBadge({ registration: r, place }: { registration: Registration; place: number }) {
   if (r.status === "cancelled") {
     return <span className="rounded-full bg-forest/10 px-2 py-0.5 text-xs font-bold text-muted">Cancelled</span>;
   }
@@ -269,7 +306,11 @@ function StatusBadge({ registration: r }: { registration: Registration }) {
     return <span className="rounded-full bg-lime px-2 py-0.5 text-xs font-bold text-forest-deep">Checked in</span>;
   }
   if (r.status === "waitlist") {
-    return <span className="rounded-full bg-mustard px-2 py-0.5 text-xs font-bold text-forest-deep">Waitlist</span>;
+    return (
+      <span className="rounded-full bg-mustard px-2 py-0.5 text-xs font-bold text-forest-deep">
+        Waitlist · #{place}
+      </span>
+    );
   }
   return null;
 }

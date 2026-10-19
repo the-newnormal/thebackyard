@@ -9,7 +9,12 @@ import {
   SEXES,
 } from "@/content/registration-options";
 import { requireAdmin } from "@/lib/admin-auth";
-import { adminFocus, editionState, isRegistrationOpen } from "@/lib/editions/select";
+import {
+  adminFocus,
+  editionState,
+  fillsFromWaitlist,
+  isRegistrationOpen,
+} from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured } from "@/lib/email";
 import { eventDateLong, eventDateShort, eventTimeRange, formatMoment } from "@/lib/format";
@@ -186,9 +191,9 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         />
       </div>
 
-      {waitlist.length > 0 && allowPromote && !isEmailConfigured() && (
+      {allowPromote && !isEmailConfigured() && (
         <p className="mt-3 rounded-2xl bg-mustard/30 px-5 py-4 text-ink">
-          Emails are off, so “Give a spot” doesn’t notify anyone. Message the guest yourself —
+          Emails are off, so guests let in off the waitlist aren’t told. Message them yourself —
           their email and phone are in the list below.
         </p>
       )}
@@ -224,7 +229,13 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         )}
       </div>
 
-      <RegistrationList registrations={registrations} allowPromote={allowPromote} eventDay={day} />
+      <RegistrationList
+        registrations={registrations}
+        allowPromote={allowPromote}
+        autoFill={fillsFromWaitlist(edition, now)}
+        spotsLeft={capacity === null ? null : Math.max(0, capacity - people(confirmed))}
+        eventDay={day}
+      />
     </>
   );
 }

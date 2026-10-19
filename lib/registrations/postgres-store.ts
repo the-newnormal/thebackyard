@@ -1,17 +1,19 @@
 import postgres from "postgres";
 import { FIRST_EDITION_SEED } from "@/content/series";
 import { dayClash, sameDayEdition, slugFor } from "../editions/plan";
-import { isRegistrationOpen } from "../editions/select";
+import { fillsFromWaitlist, isRegistrationOpen, opensSpots } from "../editions/select";
 import type { Edition, EditionFields, EditionStats, StoredPoster } from "../editions/types";
 import { generateCode, generatePassToken } from "./code";
 import {
+  nextInLine,
   partySize,
   placement,
+  type GiveSpotResult,
   type Headcount,
   type RegisterResult,
   type Registration,
-  type RegistrationPatch,
   type RegistrationStore,
+  type Withdrawal,
 } from "./types";
 
 type Row = {
@@ -36,6 +38,7 @@ type Row = {
   status: Registration["status"];
   checked_in_at: Date | null;
   created_at: Date;
+  queued_at: Date | null;
 };
 
 const toRegistration = (row: Row): Registration => ({
@@ -61,6 +64,7 @@ const toRegistration = (row: Row): Registration => ({
   status: row.status,
   checkedInAt: row.checked_in_at?.toISOString() ?? null,
   createdAt: row.created_at.toISOString(),
+  queuedAt: row.queued_at?.toISOString() ?? null,
 });
 
 type EditionRow = {
@@ -207,7 +211,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
         ) and exists (
           select 1 from pg_attribute
-          where attrelid = to_regclass('registrations') and attname = 'school' and not attisdropped
+          where attrelid = to_regclass('registrations') and attname = 'queued_at' and not attisdropped
         ) as latest
     `;
     return Boolean(existing?.rls && existing.posters && existing.latest);
@@ -221,6 +225,17 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await tx`select pg_advisory_xact_lock(hashtext('backyard:migrate'))`;
       // Another instance may have finished it while we waited.
       if (await upToDate(tx)) return;
+      // ALTER TABLE locks a table even with nothing to change. A deployment
+      // still serving sign-ups holds editions while it reads registrations,
+      // so locking editions after registrations here could deadlock with it.
+      const [editionsHave] = await tx<{ note: boolean; rls: boolean }[]>`
+        select
+          exists (
+            select 1 from pg_attribute
+            where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
+          ) as note,
+          coalesce((select relrowsecurity from pg_class where oid = to_regclass('editions')), false) as rls
+      `;
       await tx`
         create table if not exists registrations (
           id bigserial primary key,
@@ -244,7 +259,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           marketing_opt_in boolean not null default false,
           status text not null default 'confirmed',
           checked_in_at timestamptz,
-          created_at timestamptz not null default now()
+          created_at timestamptz not null default now(),
+          queued_at timestamptz
         )
       `;
       // Columns added since launch, for tables created before them.
@@ -256,7 +272,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           add column if not exists race text,
           add column if not exists birthdate date,
           add column if not exists occupation text,
-          add column if not exists school text
+          add column if not exists school text,
+          add column if not exists queued_at timestamptz
       `;
       await tx`
         create unique index if not exists registrations_event_email
@@ -297,11 +314,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         )
       `;
       // Added after the table first shipped (databases created before it lack it).
-      await tx`
-        alter table editions add column if not exists called_off_note text
-          check (char_length(called_off_note) <= 500)
-      `;
-      await tx`alter table editions enable row level security`;
+      if (!editionsHave.note) {
+        await tx`
+          alter table editions add column if not exists called_off_note text
+            check (char_length(called_off_note) <= 500)
+        `;
+      }
+      if (!editionsHave.rls) await tx`alter table editions enable row level security`;
       // Sign-ups made before editions existed all belong to this one.
       await tx`
         insert into editions ${tx({ slug: FIRST_EDITION_SEED.slug, ...editionColumns(FIRST_EDITION_SEED) })}
@@ -331,12 +350,65 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       throw error;
     }));
 
+  // Everything that changes who's confirmed holds this per-event lock, so two
+  // people can't take the last spot.
+  const lockEvent = (tx: postgres.TransactionSql, slug: string) =>
+    tx`select pg_advisory_xact_lock(hashtext(${slug}))`;
+
+  /** People confirmed for `slug`, and how many sign-ups are waiting. */
+  const occupancy = async (tx: postgres.TransactionSql, slug: string) => {
+    const [row] = await tx<{ used: number; waiting: number }[]>`
+      select
+        coalesce(sum(1 + guests) filter (where status = 'confirmed'), 0)::int as used,
+        count(*) filter (where status = 'waitlist')::int as waiting
+      from registrations where event_slug = ${slug}
+    `;
+    return row;
+  };
+
+  /** Gives free spots on `slug` to its waitlist. Call holding lockEvent. */
+  const fill = async (tx: postgres.TransactionSql, slug: string) => {
+    const [edition] = await tx<EditionRow[]>`select * from editions where slug = ${slug}`;
+    if (!edition || !fillsFromWaitlist(toEdition(edition), new Date())) return [];
+    const { used } = await occupancy(tx, slug);
+    const queue = await tx<Row[]>`
+      select * from registrations where event_slug = ${slug} and status = 'waitlist'
+      order by coalesce(queued_at, created_at), id
+    `;
+    const promoted: Registration[] = [];
+    for (const row of nextInLine(queue, used, edition.capacity)) {
+      const [updated] = await tx<Row[]>`
+        update registrations set status = 'confirmed' where code = ${row.code} returning *
+      `;
+      promoted.push(toRegistration(updated));
+    }
+    return promoted;
+  };
+
+  /** Cancels or deletes a registration, then fills the spot it freed. */
+  const withdraw = (code: string, remove: boolean) =>
+    sql.begin(async (tx): Promise<Withdrawal | null> => {
+      const [found] = await tx<Pick<Row, "event_slug">[]>`
+        select event_slug from registrations where code = ${code}
+      `;
+      if (!found) return null;
+      await lockEvent(tx, found.event_slug);
+      const [row] = remove
+        ? await tx<Row[]>`delete from registrations where code = ${code} returning *`
+        : await tx<Row[]>`
+            update registrations set status = 'cancelled', checked_in_at = null
+            where code = ${code} and status <> 'cancelled'
+            returning *
+          `;
+      if (!row) return null;
+      return { registration: toRegistration(row), promoted: await fill(tx, row.event_slug) };
+    });
+
   return {
     async register(input): Promise<RegisterResult> {
       await ready();
       return sql.begin(async (tx) => {
-        // Serialise sign-ups per event so two people can't take the last spot.
-        await tx`select pg_advisory_xact_lock(hashtext(${input.eventSlug}))`;
+        await lockEvent(tx, input.eventSlug);
 
         const [edition] = await tx<EditionRow[]>`
           select * from editions where slug = ${input.eventSlug}
@@ -353,12 +425,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           return { kind: "duplicate", registration: toRegistration(existing) };
         }
 
-        const [{ used, waiting }] = await tx<{ used: number; waiting: number }[]>`
-          select
-            coalesce(sum(1 + guests) filter (where status = 'confirmed'), 0)::int as used,
-            count(*) filter (where status = 'waitlist')::int as waiting
-          from registrations where event_slug = ${input.eventSlug}
-        `;
+        const { used, waiting } = await occupancy(tx, input.eventSlug);
         const status = placement(
           partySize(input),
           { confirmed: used, waiting: waiting > 0 },
@@ -367,6 +434,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
 
         // Coming back after cancelling: start over with a new code and pass link.
         if (existing) await tx`delete from registrations where code = ${existing.code}`;
+
+        // Read under the lock, not at BEGIN (now()), so the waitlist runs in
+        // the order people were placed on it, as for restore. As text, to
+        // keep the microseconds a Date would drop.
+        const [{ placedAt }] = await tx<{ placedAt: string }[]>`
+          select clock_timestamp()::text as "placedAt"
+        `;
 
         const values = {
           event_slug: input.eventSlug,
@@ -394,6 +468,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
               ...values,
               code: generateCode(),
               pass_token: generatePassToken(),
+              created_at: placedAt,
             })}
             on conflict (code) do nothing
             returning *
@@ -420,7 +495,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await ready();
       const rows = await sql<Row[]>`
         select * from registrations where event_slug = ${eventSlug}
-        order by created_at desc
+        order by coalesce(queued_at, created_at) desc, id desc
       `;
       return rows.map(toRegistration);
     },
@@ -436,18 +511,27 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       return row;
     },
 
-    async update(code, patch: RegistrationPatch) {
+    async giveSpot(code) {
       await ready();
-      const set: Partial<Pick<Row, "status" | "checked_in_at">> = {};
-      if (patch.status !== undefined) set.status = patch.status;
-      if (patch.checkedInAt !== undefined) {
-        set.checked_in_at = patch.checkedInAt ? new Date(patch.checkedInAt) : null;
-      }
-      if (Object.keys(set).length === 0) return this.getByCode(code);
-      const [row] = await sql<Row[]>`
-        update registrations set ${sql(set)} where code = ${code} returning *
-      `;
-      return row ? toRegistration(row) : null;
+      return sql.begin(async (tx): Promise<GiveSpotResult> => {
+        const [found] = await tx<Pick<Row, "event_slug">[]>`
+          select event_slug from registrations where code = ${code}
+        `;
+        if (!found) return { kind: "not-waiting" };
+        await lockEvent(tx, found.event_slug);
+        const [row] = await tx<Row[]>`select * from registrations where code = ${code}`;
+        if (!row || row.status !== "waitlist") return { kind: "not-waiting" };
+        const [edition] = await tx<Pick<EditionRow, "capacity">[]>`
+          select capacity from editions where slug = ${row.event_slug}
+        `;
+        const capacity = edition ? edition.capacity : null;
+        const { used } = await occupancy(tx, row.event_slug);
+        if (capacity !== null && used + partySize(row) > capacity) return { kind: "full" };
+        const [updated] = await tx<Row[]>`
+          update registrations set status = 'confirmed' where code = ${code} returning *
+        `;
+        return { kind: "given", registration: toRegistration(updated) };
+      });
     },
 
     async setCheckedIn(code, checkedInAt) {
@@ -472,41 +556,45 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       return sql.begin(async (tx) => {
         const [found] = await tx<Row[]>`select event_slug from registrations where code = ${code}`;
         if (!found) return null;
-        await tx`select pg_advisory_xact_lock(hashtext(${found.event_slug}))`;
+        await lockEvent(tx, found.event_slug);
         const [row] = await tx<Row[]>`select * from registrations where code = ${code}`;
         if (!row || row.status !== "cancelled") return null;
         const [edition] = await tx<Pick<EditionRow, "capacity">[]>`
           select capacity from editions where slug = ${row.event_slug}
         `;
         const capacity = edition ? edition.capacity : null;
-        const [{ used, waiting }] = await tx<{ used: number; waiting: number }[]>`
-          select
-            coalesce(sum(1 + guests) filter (where status = 'confirmed'), 0)::int as used,
-            count(*) filter (where status = 'waitlist')::int as waiting
-          from registrations where event_slug = ${row.event_slug}
-        `;
+        const { used, waiting } = await occupancy(tx, row.event_slug);
         const status = placement(partySize(row), { confirmed: used, waiting: waiting > 0 }, capacity);
-        const [updated] = await tx<Row[]>`
-          update registrations set status = ${status} where code = ${code} returning *
-        `;
+        // Like a new sign-up, back on the waitlist means the back of the line.
+        const [updated] =
+          status === "waitlist"
+            ? await tx<Row[]>`
+                update registrations set status = 'waitlist', queued_at = clock_timestamp()
+                where code = ${code} returning *
+              `
+            : await tx<Row[]>`
+                update registrations set status = ${status} where code = ${code} returning *
+              `;
         return toRegistration(updated);
       });
     },
 
+    async cancel(code) {
+      await ready();
+      return withdraw(code, false);
+    },
+
     async releaseByPassToken(token) {
       await ready();
-      const [row] = await sql<Row[]>`
-        update registrations set status = 'cancelled', checked_in_at = null
-        where pass_token = ${token} and status <> 'cancelled'
-        returning *
+      const [row] = await sql<Pick<Row, "code">[]>`
+        select code from registrations where pass_token = ${token}
       `;
-      return row ? toRegistration(row) : null;
+      return row ? withdraw(row.code, false) : null;
     },
 
     async remove(code) {
       await ready();
-      const rows = await sql`delete from registrations where code = ${code} returning code`;
-      return rows.length > 0;
+      return withdraw(code, true);
     },
 
     async listEditions() {
@@ -541,6 +629,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await ready();
       const columns = editionColumns(patch);
       return sql.begin(async (tx) => {
+        // The sign-up lock first, in the same order as unpublish and delete,
+        // so a new limit and the fill it allows land as one.
+        await lockEvent(tx, slug);
         // The same lock as createEdition: day checks see every other change.
         await tx`select pg_advisory_xact_lock(hashtext('backyard:editions'))`;
         // And the row itself, so an unpublish or delete can't land in between.
@@ -552,14 +643,16 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         if (ifVersion && current.updatedAt !== ifVersion) return { kind: "changed" as const };
         const clash = dayClash(editions, current, { ...current, ...patch });
         if (clash) return { kind: "date-taken" as const, edition: clash };
-        if (Object.keys(columns).length === 0) return { kind: "updated" as const, edition: current };
+        if (Object.keys(columns).length === 0) {
+          return { kind: "updated" as const, edition: current, promoted: [] };
+        }
         const [row] = await tx<EditionRow[]>`
           update editions set ${tx({ ...columns, updated_at: new Date() })}
           where slug = ${slug} returning *
         `;
-        return row
-          ? { kind: "updated" as const, edition: toEdition(row) }
-          : { kind: "not-found" as const };
+        if (!row) return { kind: "not-found" as const };
+        const promoted = opensSpots(patch) ? await fill(tx, slug) : [];
+        return { kind: "updated" as const, edition: toEdition(row), promoted };
       });
     },
 
@@ -567,7 +660,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await ready();
       const result = await sql.begin(async (tx) => {
         // The same lock as register, so nobody signs up mid-delete.
-        await tx`select pg_advisory_xact_lock(hashtext(${slug}))`;
+        await lockEvent(tx, slug);
         const [edition] = await tx<Pick<EditionRow, "status">[]>`
           select status from editions where slug = ${slug}
         `;
@@ -589,7 +682,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await ready();
       return sql.begin(async (tx) => {
         // The same lock as register, so nobody signs up for a date as it's hidden.
-        await tx`select pg_advisory_xact_lock(hashtext(${slug}))`;
+        await lockEvent(tx, slug);
         const [{ count }] = await tx<{ count: number }[]>`
           select count(*)::int as count from registrations where event_slug = ${slug}
         `;

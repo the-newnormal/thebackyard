@@ -3,7 +3,6 @@
 import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   ADMIN_COOKIE,
@@ -12,9 +11,9 @@ import {
   createSessionToken,
   SESSION_TTL_SECONDS,
 } from "@/lib/admin-session";
-import { sendConfirmationEmail } from "@/lib/email";
 import { hasEnded } from "@/lib/editions/select";
-import { getStore, type RegistrationStatus } from "@/lib/registrations";
+import { getStore } from "@/lib/registrations";
+import { announceSpots } from "@/lib/registrations/announce";
 import { isValidCode } from "@/lib/registrations/code";
 
 export async function login(
@@ -52,30 +51,29 @@ export async function setCheckedIn(formData: FormData) {
   refresh();
 }
 
-const STATUSES: RegistrationStatus[] = ["confirmed", "waitlist", "cancelled"];
-
-export async function setStatus(formData: FormData) {
+/** "Give a spot": lets a waitlisted guest in, out of turn if need be, while there's room. */
+export async function giveSpot(formData: FormData) {
   await requireAdmin();
   const code = codeFrom(formData);
-  const status = String(formData.get("status")) as RegistrationStatus;
-  if (!code || !STATUSES.includes(status)) return;
+  if (!code) return;
   const store = getStore();
-  const before = await store.getByCode(code);
-  if (!before || before.status === status) return;
-  const edition = await store.getEdition(before.eventSlug);
-  const promoting = before.status === "waitlist" && status === "confirmed";
+  const registration = await store.getByCode(code);
+  if (!registration) return;
+  const edition = await store.getEdition(registration.eventSlug);
   // Nobody should get "you're in" for a date that's over or called off.
-  if (promoting && (!edition || edition.status === "cancelled" || hasEnded(edition, new Date()))) {
-    return;
-  }
-  const updated = await store.update(code, {
-    status,
-    ...(status === "cancelled" ? { checkedInAt: null } : {}),
-  });
-  // Let a waitlisted guest know they've been given a spot.
-  if (updated && promoting && edition) {
-    after(() => sendConfirmationEmail(updated, edition));
-  }
+  if (!edition || edition.status === "cancelled" || hasEnded(edition, new Date())) return;
+  const result = await store.giveSpot(code);
+  if (result.kind === "given") announceSpots([result.registration]);
+  refresh();
+}
+
+/** Cancels a registration; the spot it frees goes to the waitlist. */
+export async function cancelRegistration(formData: FormData) {
+  await requireAdmin();
+  const code = codeFrom(formData);
+  if (!code) return;
+  const withdrawal = await getStore().cancel(code);
+  if (withdrawal) announceSpots(withdrawal.promoted);
   refresh();
 }
 
@@ -92,6 +90,7 @@ export async function deleteRegistration(formData: FormData) {
   await requireAdmin();
   const code = codeFrom(formData);
   if (!code) return;
-  await getStore().remove(code);
+  const withdrawal = await getStore().remove(code);
+  if (withdrawal) announceSpots(withdrawal.promoted);
   refresh();
 }
