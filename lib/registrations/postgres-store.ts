@@ -225,6 +225,17 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       await tx`select pg_advisory_xact_lock(hashtext('backyard:migrate'))`;
       // Another instance may have finished it while we waited.
       if (await upToDate(tx)) return;
+      // ALTER TABLE locks a table even with nothing to change. A deployment
+      // still serving sign-ups holds editions while it reads registrations,
+      // so locking editions after registrations here could deadlock with it.
+      const [editionsHave] = await tx<{ note: boolean; rls: boolean }[]>`
+        select
+          exists (
+            select 1 from pg_attribute
+            where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
+          ) as note,
+          coalesce((select relrowsecurity from pg_class where oid = to_regclass('editions')), false) as rls
+      `;
       await tx`
         create table if not exists registrations (
           id bigserial primary key,
@@ -303,11 +314,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         )
       `;
       // Added after the table first shipped (databases created before it lack it).
-      await tx`
-        alter table editions add column if not exists called_off_note text
-          check (char_length(called_off_note) <= 500)
-      `;
-      await tx`alter table editions enable row level security`;
+      if (!editionsHave.note) {
+        await tx`
+          alter table editions add column if not exists called_off_note text
+            check (char_length(called_off_note) <= 500)
+        `;
+      }
+      if (!editionsHave.rls) await tx`alter table editions enable row level security`;
       // Sign-ups made before editions existed all belong to this one.
       await tx`
         insert into editions ${tx({ slug: FIRST_EDITION_SEED.slug, ...editionColumns(FIRST_EDITION_SEED) })}
@@ -422,6 +435,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         // Coming back after cancelling: start over with a new code and pass link.
         if (existing) await tx`delete from registrations where code = ${existing.code}`;
 
+        // Read under the lock, not at BEGIN (now()), so the waitlist runs in
+        // the order people were placed on it, as for restore. As text, to
+        // keep the microseconds a Date would drop.
+        const [{ placedAt }] = await tx<{ placedAt: string }[]>`
+          select clock_timestamp()::text as "placedAt"
+        `;
+
         const values = {
           event_slug: input.eventSlug,
           name: input.name,
@@ -448,6 +468,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
               ...values,
               code: generateCode(),
               pass_token: generatePassToken(),
+              created_at: placedAt,
             })}
             on conflict (code) do nothing
             returning *
