@@ -55,7 +55,10 @@ export interface Registration {
   dietary: Dietary;
   dietaryNotes: string | null;
   heardFrom: HeardFrom | null;
-  /** Yes to the PDPA question: marketing emails, and planning future programmes. */
+  /**
+   * Hears about events and programmes. Everyone who registers under the Terms
+   * (/terms) does; earlier sign-ups answered Yes or No.
+   */
   marketingOptIn: boolean;
   status: RegistrationStatus;
   checkedInAt: string | null;

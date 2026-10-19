@@ -11,7 +11,7 @@ export const series = {
   timeZone: "Asia/Singapore",
   utcOffset: "+08:00",
 
-  // Named in the personal-data consent on the registration form.
+  // Shown in the footer.
   organiser: "The New Normal",
 
   // Optional. Shown in the footer and FAQ when set.

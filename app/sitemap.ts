@@ -3,5 +3,5 @@ import { siteUrl } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = siteUrl();
-  return [{ url: base }, { url: `${base}/register` }];
+  return [{ url: base }, { url: `${base}/register` }, { url: `${base}/terms` }];
 }

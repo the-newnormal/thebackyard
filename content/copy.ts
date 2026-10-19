@@ -56,10 +56,13 @@ export const moreThan = {
   body: "We aim to be more than a place to dwell or a means to gather — a hub that pulls people in, just to be. Friendships will form, people will feel welcomed and hosted, and it will grow organically.",
 };
 
-// The PDPA question on the last registration step. People answer Yes or No,
-// and can register either way.
-export const pdpaConsent =
-  "I agree for Backyard and its affiliated parties to send me marketing and communication materials including upcoming youth programmes and events via email, and to improve its planning and delivery of youth programmes and events. I understand that I can unsubscribe at any time.";
+// The consent on the last registration step, above its button. Pressing it
+// agrees to this and to the Terms (content/terms.ts), which `terms` links to.
+export const signUpConsent = {
+  body: "By submitting this form, I consent to Backyard SG and its Affiliated Parties collecting, using and disclosing my personal data for operational planning, security, communications and research, and to using my contact details so they can text/email me information about events, programmes, products or services, handled in accordance with Singapore’s Personal Data Protection Act 2012. I can opt out of marketing at any time by emailing Backyard SG, as set out in the Terms.",
+  terms: { before: "Full Terms & Conditions:", link: "Click Here" },
+  button: "Agree to proceed",
+};
 
 export const faqs = [
   {
@@ -84,7 +87,7 @@ export const faqs = [
   },
   {
     q: "How often is Backyard?",
-    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram, or say yes to “can we keep you posted?” when you register, to hear when the next date opens.`,
+    a: `Every month, usually on a Friday evening. Follow @${series.contact.instagram} on Instagram to hear when the next date opens. Once you’ve registered, we’ll keep you posted too.`,
   },
   {
     q: "How do I get there?",

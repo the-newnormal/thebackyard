@@ -18,7 +18,7 @@ import {
   type OtherDate,
   type RegisterState,
 } from "@/app/register/actions";
-import { pdpaConsent } from "@/content/copy";
+import { signUpConsent } from "@/content/copy";
 import { series } from "@/content/series";
 import {
   MAIN_RACES,
@@ -84,8 +84,6 @@ type Values = {
   /** A country name rather than its code, since +1 is shared. */
   phoneCountry: string;
   phoneLocal: string;
-  /** The PDPA answer, "yes" or "no". */
-  marketingOptIn: string;
 };
 
 const EMPTY: Values = {
@@ -102,7 +100,6 @@ const EMPTY: Values = {
   email: "",
   phoneCountry: COUNTRIES[0].name,
   phoneLocal: "",
-  marketingOptIn: "",
 };
 
 /**
@@ -252,9 +249,8 @@ function validate(step: StepKey, values: Values): string | null {
           ? "Use an 8-digit SG number"
           : "That number doesn’t look right";
     case "code":
-      return null;
     case "pdpa":
-      return values.marketingOptIn ? null : "Pick yes or no";
+      return null;
     default:
       return values[step] ? null : "Pick one";
   }
@@ -987,41 +983,25 @@ export function RegistrationFlow({
 
       case "pdpa":
         return (
-          <form
-            action={submitAction}
-            onSubmit={(e) => {
-              const problem = validate("pdpa", values);
-              if (problem) {
-                e.preventDefault();
-                setErrors((er) => ({ ...er, pdpa: problem }));
-              }
-            }}
-          >
+          <form action={submitAction}>
             <Question id={headingId} kicker={KICKERS[step]}>
-              can we keep you posted?
+              the fine print
             </Question>
             {banner}
-            <p id={`${headingId}-pdpa`} className="-mt-3 mb-6 text-lg leading-relaxed text-ink">
-              {pdpaConsent}
+            <p className="rounded-2xl bg-cream/70 p-5 text-lg leading-relaxed text-ink">
+              {signUpConsent.body} ({signUpConsent.terms.before}{" "}
+              {/* A new tab, so the answers stay on screen. */}
+              <Link
+                href="/terms"
+                target="_blank"
+                className="font-semibold text-forest underline decoration-2 underline-offset-4 hover:text-vermilion"
+              >
+                {signUpConsent.terms.link}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </Link>
+              .)
             </p>
-            <ChoiceGrid
-              labelledBy={headingId}
-              describedBy={[`${headingId}-pdpa`, describedBy].filter(Boolean).join(" ")}
-              options={[
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-              ]}
-              columns={2}
-              value={values.marketingOptIn}
-              onPick={(v) => update({ marketingOptIn: v })}
-            />
             <ErrorText id={errorId}>{error}</ErrorText>
-
-            <p className="mt-8 rounded-2xl bg-cream/70 p-5 text-[0.95rem] leading-snug text-ink">
-              By registering, you agree to {series.organiser} collecting and using your details,
-              in line with Singapore’s PDPA, to manage your registration, contact you about
-              this event, and understand who Backyard reaches.
-            </p>
 
             <Answers
               edition={edition}
@@ -1032,8 +1012,8 @@ export function RegistrationFlow({
             <Nav
               onBack={back}
               pending={submitting}
-              nextLabel={waitlist ? "Join the waitlist" : "Save my spot"}
-              pendingLabel="Saving your spot…"
+              nextLabel={signUpConsent.button}
+              pendingLabel={waitlist ? "Joining the waitlist…" : "Saving your spot…"}
             />
           </form>
         );
@@ -1258,7 +1238,6 @@ function Answers({
         : "",
     // So the server can tell this form asked for a code.
     verifyPhone: verifyPhone ? "on" : "",
-    marketingOptIn: values.marketingOptIn,
     consent: "on",
   };
   return (

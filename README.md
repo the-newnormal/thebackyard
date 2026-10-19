@@ -10,9 +10,11 @@ with its own date, venue, capacity, poster and guest list.
 - **`/register`**: free registration on a page of its own, one question per screen:
   name, residency, sex, race, date of birth, occupation (and school, for students),
   dietary needs, email, mobile (confirmed with a texted code when Twilio is set up)
-  and the PDPA question, for whichever date is taking sign-ups (`?edition=<slug>`
+  and agreeing to the Terms, for whichever date is taking sign-ups (`?edition=<slug>`
   for a specific one). Unfinished answers are kept in the browser, per date, so
   people can pick up where they left off. A waitlist opens when it's full
+- **`/terms`**: the Terms and Conditions, with the Data Protection Notice, linked
+  from the consent on the last sign-up step
 - **`/pass/<token>`**: each guest's pass for their own date, with their check-in
   code, calendar links and a "release my spot" button. The link carries an
   unguessable token; the short check-in code is only for the check-in table
@@ -48,7 +50,8 @@ or redeploys:
 | Date, time, venue, capacity, sign-up window, poster, note for guests | `/admin/editions` |
 | Name, tagline, organiser, contact | `content/series.ts` |
 | Answer options: residency, race, occupations, schools | `content/registration-options.ts` |
-| "Why Backyard", "Why BBQs", "Our model", FAQ, brand line | `content/copy.ts` |
+| "Why Backyard", "Why BBQs", "Our model", FAQ, brand line, sign-up consent | `content/copy.ts` |
+| Terms and Conditions (`/terms`) | `content/terms.ts` |
 | Brand colours and fonts | `app/globals.css` (`@theme`) and `app/layout.tsx` |
 | Link preview image | `app/opengraph-image.jpg` (1200×630) |
 

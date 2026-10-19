@@ -42,7 +42,6 @@ const FIELDS = [
   "dietaryNotes",
   "email",
   "phone",
-  "marketingOptIn",
   "consent",
 ];
 
@@ -118,6 +117,8 @@ export async function register(
   // A page opened before the step-by-step questions has none of them; its old
   // form couldn't show which answers are missing.
   if (!formData.has("residentStatus")) return { message: RELOAD };
+  // One opened before the Terms asked Yes or No to updates instead.
+  if (formData.has("marketingOptIn")) return { message: RELOAD };
 
   let target;
   try {
@@ -173,7 +174,8 @@ export async function register(
     dietary: answers.dietary,
     dietaryNotes: answers.dietaryNotes,
     heardFrom: null,
-    marketingOptIn: answers.marketingOptIn,
+    // Registering is consent to updates (Terms, Part B clause 7); opting out is by email.
+    marketingOptIn: true,
   };
 
   let result;
