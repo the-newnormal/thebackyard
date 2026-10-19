@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  startTransition,
   useActionState,
   useCallback,
   useEffect,
@@ -514,8 +515,6 @@ export function RegistrationFlow({
     }
     // A rejected number needs a fresh code.
     if (byStep.phone) setVerified(null);
-    // The form resets after every reply, unticking the guardian box; match it.
-    setValues((v) => ({ ...v, guardianConsent: "" }));
     const target = steps.find((s) => byStep[s]) ?? "pdpa";
     setErrors(byStep);
     if (target !== step) go(target, -1);
@@ -1002,14 +1001,18 @@ export function RegistrationFlow({
 
       case "pdpa":
         return (
+          // Submitted by hand rather than through `action`, which resets the
+          // form after a reply and would untick the guardian box behind React.
           <form
-            action={submitAction}
             onSubmit={(e) => {
+              e.preventDefault();
               const problem = validate("pdpa", values);
               if (problem) {
-                e.preventDefault();
                 setErrors((er) => ({ ...er, pdpa: problem }));
+                return;
               }
+              const answers = new FormData(e.currentTarget);
+              startTransition(() => submitAction(answers));
             }}
           >
             <Question id={headingId} kicker={KICKERS[step]}>

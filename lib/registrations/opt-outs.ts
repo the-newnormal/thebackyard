@@ -18,14 +18,20 @@ const DIAL_CODES = [...new Set(COUNTRIES.map((c) => c.code))].sort(
  * list: without "(0)" or the trunk 0 people type after the code ("+60 012…").
  */
 function canonicalPhone(input: string): string {
-  const phone = normalizePhone(input.replace(/\(\s*0\s*\)/g, "").replace(/^\s*00/, "+"));
+  const phone = normalizePhone(
+    input.replace(/^(\s*(?:\+|00)\d{1,4}\s*)\(\s*0\s*\)/, "$1").replace(/^\s*00/, "+"),
+  );
   const code = DIAL_CODES.find((c) => phone.startsWith(c));
   return code ? normalizePhone(code + phone.slice(code.length).replace(/^0+/, "")) : phone;
 }
 
 /** An email address (lowercased) or a number; null if it's neither. */
 export function contactKey(input: string): string | null {
-  const value = input.trim();
+  // Copied numbers can carry invisible marks (iPhones add them) and fancy dashes.
+  const value = input
+    .replace(/\p{Cf}/gu, "")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .trim();
   if (value.includes("@")) {
     const email = value.toLowerCase();
     return EMAIL_PATTERN.test(email) && email.length <= 200 ? email : null;
