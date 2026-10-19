@@ -188,7 +188,10 @@ function Ticket({
         )}
         {active && status === "waitlist" && (
           <p className="mx-auto mt-3 max-w-sm text-muted">
-            We’re at capacity for now. If a spot opens up, we’ll be in touch.
+            {/* Once it's started, the organisers decide who comes in. */}
+            {state === "live"
+              ? "We’re at capacity for now. If a spot opens up, we’ll be in touch."
+              : "We’re at capacity for now. Spots that open up go to the waitlist in sign-up order, and we’ll email you if you get one."}
           </p>
         )}
         {!calledOff && status === "cancelled" && (
