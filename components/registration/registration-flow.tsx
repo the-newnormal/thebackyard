@@ -643,7 +643,7 @@ export function RegistrationFlow({
         return (
           <form onSubmit={submitStep} noValidate>
             <Question id={headingId} kicker={KICKERS[step]}>
-              what’s your full name?
+              what’s your name?
             </Question>
             {banner}
             <input
@@ -1001,6 +1001,18 @@ export function RegistrationFlow({
               </Link>
               .)
             </p>
+            <label className="mt-6 flex items-start gap-3 text-base leading-relaxed text-ink">
+              <input
+                type="checkbox"
+                name="marketingOptIn"
+                value="on"
+                className="mt-1 h-5 w-5 shrink-0 accent-vermilion"
+              />
+              <span>
+                Yes, send me occasional texts and emails about Backyard SG and its Affiliated Parties’
+                events, programmes, products or services.
+              </span>
+            </label>
             <ErrorText id={errorId}>{error}</ErrorText>
 
             <Answers

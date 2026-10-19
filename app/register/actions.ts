@@ -43,6 +43,7 @@ const FIELDS = [
   "email",
   "phone",
   "consent",
+  "marketingOptIn",
 ];
 
 const CLOSED = "Registration has closed for this one — see you at the next Backyard!";
@@ -117,9 +118,6 @@ export async function register(
   // A page opened before the step-by-step questions has none of them; its old
   // form couldn't show which answers are missing.
   if (!formData.has("residentStatus")) return { message: RELOAD };
-  // One opened before the Terms asked Yes or No to updates instead.
-  if (formData.has("marketingOptIn")) return { message: RELOAD };
-
   let target;
   try {
     target = await signUpTarget(String(formData.get("edition") ?? ""));
@@ -174,8 +172,7 @@ export async function register(
     dietary: answers.dietary,
     dietaryNotes: answers.dietaryNotes,
     heardFrom: null,
-    // Registering is consent to updates (Terms, Part B clause 7); opting out is by email.
-    marketingOptIn: true,
+    marketingOptIn: answers.marketingOptIn,
   };
 
   let result;

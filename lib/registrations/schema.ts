@@ -65,6 +65,7 @@ export const registrationSchema = z
       .regex(EMAIL_PATTERN, "That email doesn’t look right"),
     phone: phoneSchema,
     consent: z.literal("on", "We need your OK to hold your details for this event"),
+    marketingOptIn: z.enum(["", "on"]).transform((value) => value === "on"),
   })
   // Only students are asked for a school, from the list for their occupation.
   .superRefine((v, ctx) => {

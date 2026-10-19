@@ -59,7 +59,7 @@ export const moreThan = {
 // The consent on the last registration step, above its button. Pressing it
 // agrees to this and to the Terms (content/terms.ts), which `terms` links to.
 export const signUpConsent = {
-  body: "By submitting this form, I consent to Backyard SG and its Affiliated Parties collecting, using and disclosing my personal data for operational planning, security, communications and research, and to using my contact details so they can text/email me information about events, programmes, products or services, handled in accordance with Singapore’s Personal Data Protection Act 2012. I can opt out of marketing at any time by emailing Backyard SG, as set out in the Terms.",
+  body: "By submitting this form, I consent to Backyard SG and its Affiliated Parties collecting, using and disclosing my personal data for operational planning, security, communications and research, handled in accordance with Singapore’s Personal Data Protection Act 2012.",
   terms: { before: "Full Terms & Conditions:", link: "Click Here" },
   button: "Agree to proceed",
 };
