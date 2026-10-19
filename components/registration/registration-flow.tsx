@@ -295,6 +295,9 @@ function readSaved(key: string): string | null {
   }
 }
 
+/** What's kept in the browser: not the guardian tick, which is given afresh each time. */
+const toKeep = (values: Values): Values => ({ ...values, guardianConsent: "" });
+
 function parseProgress(raw: string | null): Progress | null {
   if (!raw) return null;
   try {
@@ -376,7 +379,7 @@ export function RegistrationFlow({
 
   useEffect(() => {
     if (!started) return;
-    const progress: Progress = { step, values, savedAt: Date.now() };
+    const progress: Progress = { step, values: toKeep(values), savedAt: Date.now() };
     try {
       if (hasAnswers(values)) localStorage.setItem(key, JSON.stringify(progress));
       else localStorage.removeItem(key);
@@ -523,7 +526,7 @@ export function RegistrationFlow({
 
   /** Keeps the answers for another date's form, before following a link to it. */
   function carryOver(to: string) {
-    const progress: Progress = { step, values, savedAt: Date.now() };
+    const progress: Progress = { step, values: toKeep(values), savedAt: Date.now() };
     try {
       localStorage.setItem(progressKey(to), JSON.stringify(progress));
       localStorage.removeItem(key);
@@ -750,7 +753,8 @@ export function RegistrationFlow({
             {banner}
             <BirthdateFields
               value={values.birthdate}
-              onChange={(birthdate) => update({ birthdate })}
+              // A guardian's OK was given for the birthdate shown then.
+              onChange={(birthdate) => update({ birthdate, guardianConsent: "" })}
               labelledBy={headingId}
               invalid={Boolean(error)}
               describedBy={describedBy}
