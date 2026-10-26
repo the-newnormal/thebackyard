@@ -13,6 +13,9 @@ export const series = {
 
   // Shown in the footer.
   organiser: "The New Normal",
+  // Optional. Shown in the footer as "Hosted by <organiser> with <coOrganiser>"
+  // when set. This shows on every date; clear it when the partnership ends.
+  coOrganiser: "*SCAPE",
 
   // Optional. Shown in the footer and FAQ when set.
   contact: {

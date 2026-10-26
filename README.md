@@ -52,7 +52,7 @@ or redeploys:
 | What | Where |
 | --- | --- |
 | Date, time, venue, capacity, sign-up window, poster, note for guests | `/admin/editions` |
-| Name, tagline, organiser, contact | `content/series.ts` |
+| Name, tagline, organiser, co-organiser, contact | `content/series.ts` |
 | Answer options: residency, race, occupations, schools | `content/registration-options.ts` |
 | "Why Backyard", "Why BBQs", "Our model", FAQ, brand line, sign-up consent | `content/copy.ts` |
 | Terms and Conditions (`/terms`) | `content/terms.ts` |
