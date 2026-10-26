@@ -43,7 +43,10 @@ export function SiteFooter({ cta = true }: { cta?: boolean }) {
       <div className="relative border-t border-cream/15">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-sm text-cream/60 sm:px-6">
           <p className="flex flex-wrap gap-x-5 gap-y-2">
-            <span>Hosted by {series.organiser}</span>
+            <span>
+              Hosted by {series.organiser}
+              {series.coOrganiser && ` with ${series.coOrganiser}`}
+            </span>
             <Link href="/terms" className="hover:text-lime">
               Terms &amp; Conditions
             </Link>
