@@ -24,6 +24,10 @@ export function eventTimeRange(edition: Timed): string {
 export const eventDayMonth = (edition: Started) =>
   fmt(new Date(edition.startsAt), { day: "numeric", month: "long" });
 
+/** e.g. "Friday" */
+export const eventWeekday = (edition: Started) =>
+  fmt(new Date(edition.startsAt), { weekday: "long" });
+
 /** e.g. "Fri" */
 export const eventWeekdayShort = (edition: Started) =>
   fmt(new Date(edition.startsAt), { weekday: "short" });

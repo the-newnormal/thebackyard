@@ -31,11 +31,15 @@ import { AdminHeader } from "./admin-header";
 import { EditionBadge } from "./edition-badge";
 import { setRegistrationWindow } from "./editions/actions";
 import { RegistrationList } from "./registration-list";
+import { ReminderForm } from "./reminder-form";
 
 export const metadata: Metadata = {
   title: "Dashboard",
   robots: { index: false, follow: false },
 };
+
+// "Email reminder" sends one email at a time to every confirmed guest.
+export const maxDuration = 300;
 
 export default function AdminPage({ searchParams }: PageProps<"/admin">) {
   return (
@@ -97,6 +101,11 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
   const { capacity } = edition;
   // Giving a spot emails a confirmation; pointless once it's over or called off.
   const allowPromote = state !== "past" && state !== "cancelled";
+  const allowReminder =
+    edition.status === "published" &&
+    now < new Date(edition.startsAt) &&
+    confirmed.length > 0 &&
+    isEmailConfigured();
   const day = editionDay(edition);
 
   // Food prep is for people who are actually coming.
@@ -162,6 +171,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
           >
             Export CSV
           </a>
+          {allowReminder && <ReminderForm slug={edition.slug} guests={confirmed.length} />}
         </div>
       </div>
 

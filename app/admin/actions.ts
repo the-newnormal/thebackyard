@@ -12,6 +12,8 @@ import {
   SESSION_TTL_SECONDS,
 } from "@/lib/admin-session";
 import { hasEnded } from "@/lib/editions/select";
+import type { Edition } from "@/lib/editions/types";
+import { isEmailConfigured, sendReminderEmails } from "@/lib/email";
 import { getStore } from "@/lib/registrations";
 import { announceSpots } from "@/lib/registrations/announce";
 import { isValidCode } from "@/lib/registrations/code";
@@ -94,6 +96,28 @@ export async function deleteRegistration(formData: FormData) {
   const withdrawal = await getStore().remove(code);
   if (withdrawal) announceSpots(withdrawal.promoted);
   refresh();
+}
+
+export type ReminderState = { sent?: number; failed?: string[]; error?: string };
+
+/** Emails every confirmed guest a reminder with their code and pass, before the date starts. */
+export async function sendReminders(
+  _prev: ReminderState,
+  formData: FormData,
+): Promise<ReminderState> {
+  await requireAdmin();
+  const store = getStore();
+  const editions = await store.listEditions();
+  const edition = editions.find((e) => e.slug === formData.get("slug"));
+  const now = new Date();
+  if (!edition || edition.status !== "published" || now >= new Date(edition.startsAt)) {
+    return { error: "Reminders only go out for a published date that hasn’t started." };
+  }
+  if (!isEmailConfigured()) return { error: "Email isn’t set up, so nothing was sent." };
+  const guests = (await store.list(edition.slug)).filter((r) => r.status === "confirmed");
+  const starts = (e: Edition) => new Date(e.startsAt).getTime();
+  const first = !editions.some((e) => e.status === "published" && starts(e) < starts(edition));
+  return sendReminderEmails(guests, edition, { first, now });
 }
 
 export type OptOutState = { error?: string; added?: string; value?: string };

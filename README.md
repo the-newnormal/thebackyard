@@ -44,7 +44,10 @@ or redeploys:
 3. The homepage switches to the next date by itself once the current one ends
    (within about five minutes). The dashboard stays on tonight's date until
    the next morning, so check-in isn't interrupted.
-4. On the night, the dashboard has **Close sign-ups now** / **Reopen sign-ups**.
+4. A few days before, **Email reminder** on the dashboard emails every
+   confirmed guest their code and pass link, counting down to the date ("3
+   DAYS TO GO!"). It sends each time it's pressed, so press it once.
+5. On the night, the dashboard has **Close sign-ups now** / **Reopen sign-ups**.
    If it rains or the haze is bad, **Call it off** with a note: the homepage,
    sign-up page and passes say so, and registrations are kept in case it's
    back on. Guests aren't emailed, so post on Instagram too.
@@ -134,4 +137,5 @@ and `marketing_opt_outs` tables are created automatically on first use.
   with row-level security enabled and no policies, so on Supabase they aren't
   readable through the REST API; the app connects as the table owner.
 - If email is configured (Gmail or Resend), a confirmation email with the pass
-  link and the date in the subject goes out after each sign-up.
+  link and the date in the subject goes out after each sign-up. Reminders go
+  out only when an organiser presses **Email reminder**.
