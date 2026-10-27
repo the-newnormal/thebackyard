@@ -12,7 +12,7 @@ export const series = {
   utcOffset: "+08:00",
 
   // Shown in the footer.
-  organiser: "The New Normal",
+  organiser: "Backyard SG",
   // Optional. Shown in the footer as "Hosted by <organiser> with <coOrganiser>"
   // when set. This shows on every date; clear it when the partnership ends.
   coOrganiser: "*SCAPE",
