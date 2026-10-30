@@ -109,8 +109,8 @@ export interface RegistrationStore {
    * Atomically checks for an existing sign-up with the same email and places
    * the new one as confirmed or waitlisted. While anyone is waiting, newcomers
    * join the back of the waitlist instead of taking freed spots. Someone
-   * re-registering after cancelling gets a fresh code and pass token, so old
-   * pass links stop working. Capacity and the registration window come from
+   * re-registering after cancelling gets a new registration with a fresh code
+   * and pass token; the cancelled one is kept, details and answers intact. Capacity and the registration window come from
    * the edition, read under the same lock.
    */
   register(input: NewRegistration): Promise<RegisterResult>;
@@ -133,7 +133,7 @@ export interface RegistrationStore {
    * Un-cancels a registration, placing it the way a new sign-up would be
    * against its edition's capacity (onto the waitlist means the back of the
    * line: queuedAt is set). Runs under the same lock as register so it can't
-   * overbook.
+   * overbook. Null if they've since signed up again for the same date.
    */
   restore(code: string): Promise<Registration | null>;
   /** Cancels a registration that's still active, then fills from the waitlist. */

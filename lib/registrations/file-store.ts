@@ -167,11 +167,12 @@ export function createFileStore(): RegistrationStore {
         const rows = await load();
         const email = input.email.toLowerCase();
         const existing = rows.find(
-          (r) => r.eventSlug === input.eventSlug && r.email.toLowerCase() === email,
+          (r) =>
+            r.eventSlug === input.eventSlug &&
+            r.email.toLowerCase() === email &&
+            r.status !== "cancelled",
         );
-        if (existing && existing.status !== "cancelled") {
-          return { kind: "duplicate", registration: existing };
-        }
+        if (existing) return { kind: "duplicate", registration: existing };
 
         const used = confirmedHeadcount(rows, input.eventSlug);
         const waiting = rows.some(
@@ -195,9 +196,9 @@ export function createFileStore(): RegistrationStore {
           createdAt: new Date().toISOString(),
           queuedAt: null,
         };
-        // Coming back after cancelling: start over with a new code and pass link.
-        const next = rows.filter((r) => r !== existing);
-        await save([...next, registration]);
+        // Coming back after cancelling starts over with a new code and pass
+        // link; the cancelled sign-up stays on record.
+        await save([...rows, registration]);
         return { kind: "created", registration };
       }),
 
@@ -252,6 +253,15 @@ export function createFileStore(): RegistrationStore {
         const index = rows.findIndex((r) => r.code === code && r.status === "cancelled");
         if (index === -1) return null;
         const slug = rows[index].eventSlug;
+        const email = rows[index].email.toLowerCase();
+        // They've since signed up again; that sign-up is the one that counts.
+        if (
+          rows.some(
+            (r) => r.eventSlug === slug && r.email.toLowerCase() === email && r.status !== "cancelled",
+          )
+        ) {
+          return null;
+        }
         const edition = (await loadEditions()).find((e) => e.slug === slug);
         const capacity = edition ? edition.capacity : null;
         const status = placement(

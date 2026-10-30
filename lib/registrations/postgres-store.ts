@@ -280,9 +280,12 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           add column if not exists school text,
           add column if not exists queued_at timestamptz
       `;
+      // One active sign-up per email per date. Cancelled ones stay on record,
+      // so someone who comes back after cancelling keeps their old row too.
+      await tx`drop index if exists registrations_event_email`;
       await tx`
-        create unique index if not exists registrations_event_email
-          on registrations (event_slug, lower(email))
+        create unique index if not exists registrations_event_email_active
+          on registrations (event_slug, lower(email)) where status <> 'cancelled'
       `;
       // Supabase exposes the public schema over its REST API. With RLS on and
       // no policies, only the table owner (this app) can read the guest list.
@@ -438,10 +441,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         const [existing] = await tx<Row[]>`
           select * from registrations
           where event_slug = ${input.eventSlug} and lower(email) = lower(${input.email})
+            and status <> 'cancelled'
         `;
-        if (existing && existing.status !== "cancelled") {
-          return { kind: "duplicate", registration: toRegistration(existing) };
-        }
+        if (existing) return { kind: "duplicate", registration: toRegistration(existing) };
 
         const { used, waiting } = await occupancy(tx, input.eventSlug);
         const status = placement(
@@ -450,9 +452,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           edition.capacity,
         );
 
-        // Coming back after cancelling: start over with a new code and pass link.
-        if (existing) await tx`delete from registrations where code = ${existing.code}`;
-
+        // Coming back after cancelling starts over with a new code and pass
+        // link; the cancelled sign-up stays on record.
         // Read under the lock, not at BEGIN (now()), so the waitlist runs in
         // the order people were placed on it, as for restore. As text, to
         // keep the microseconds a Date would drop.
@@ -577,6 +578,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         await lockEvent(tx, found.event_slug);
         const [row] = await tx<Row[]>`select * from registrations where code = ${code}`;
         if (!row || row.status !== "cancelled") return null;
+        // They've since signed up again; that sign-up is the one that counts.
+        const [active] = await tx<Pick<Row, "code">[]>`
+          select code from registrations
+          where event_slug = ${row.event_slug} and lower(email) = lower(${row.email})
+            and status <> 'cancelled'
+        `;
+        if (active) return null;
         const [edition] = await tx<Pick<EditionRow, "capacity">[]>`
           select capacity from editions where slug = ${row.event_slug}
         `;
