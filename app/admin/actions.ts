@@ -89,15 +89,6 @@ export async function restoreRegistration(formData: FormData) {
   refresh();
 }
 
-export async function deleteRegistration(formData: FormData) {
-  await requireAdmin();
-  const code = codeFrom(formData);
-  if (!code) return;
-  const withdrawal = await getStore().remove(code);
-  if (withdrawal) announceSpots(withdrawal.promoted);
-  refresh();
-}
-
 export type ReminderState = { sent?: number; failed?: string[]; error?: string };
 
 /** Emails every confirmed guest a reminder with their code and pass, before the date starts. */

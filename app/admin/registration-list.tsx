@@ -13,7 +13,6 @@ import {
 } from "@/lib/registrations/types";
 import {
   cancelRegistration,
-  deleteRegistration,
   giveSpot,
   restoreRegistration,
   setCheckedIn,
@@ -284,15 +283,6 @@ function Row({
             </ConfirmButton>
           </form>
         )}
-        <form action={deleteRegistration}>
-          <input type="hidden" name="code" value={r.code} />
-          <ConfirmButton
-            confirm={`Permanently delete ${r.name}'s details? This can't be undone.`}
-            className="rounded-full px-3 py-2 text-sm font-semibold text-muted hover:text-red"
-          >
-            Delete
-          </ConfirmButton>
-        </form>
       </div>
     </li>
   );
