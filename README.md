@@ -130,7 +130,8 @@ and `marketing_opt_outs` tables are created automatically on first use.
 - Guests can release their own spot from their pass. Re-registering afterwards
   issues a new pass link, so old links stop working.
 - Organisers can check in confirmed guests, give a waitlisted guest a spot
-  out of turn while there's room (which emails them, if email is set up),
+  out of turn (which emails them, if email is set up; when it's full, after a
+  confirm, over the limit without raising it, so the sign-up form stays full),
   cancel, restore or permanently delete (for personal-data requests) from
   `/admin`. Once a date is over or called off, guests can't release their
   spot and nobody can be given one.
