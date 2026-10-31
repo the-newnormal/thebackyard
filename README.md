@@ -51,7 +51,11 @@ or redeploys:
 5. On the night, the dashboard has **Close sign-ups now** / **Reopen sign-ups**.
    If it rains or the haze is bad, **Call it off** with a note: the homepage,
    sign-up page and passes say so, and registrations are kept in case it's
-   back on. Guests aren't emailed, so post on Instagram too.
+   back on. Guests aren't emailed, so post on Instagram too. For someone who
+   didn't sign up, **Add a walk-in** (from the morning of the date, and after
+   it, for names taken down on paper) adds them checked in, even if it's full.
+   Walk-ins only get updates if they say yes; they're marked in the list and
+   the CSV's `walk_in`.
 
 | What | Where |
 | --- | --- |

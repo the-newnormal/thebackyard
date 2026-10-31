@@ -11,6 +11,7 @@ type Column = [string, (r: Registration) => string | number | boolean | null];
 const columns = (day: string, optedOut: ReadonlySet<string>): Column[] => [
   ["code", (r) => r.code],
   ["status", (r) => r.status],
+  ["walk_in", (r) => r.walkIn],
   ["name", (r) => r.name],
   ["email", (r) => r.email],
   ["phone", (r) => r.phone],

@@ -1,3 +1,6 @@
+import { series } from "@/content/series";
+import { dateIn } from "../registrations/birthdate";
+import { editionDay } from "../registrations/demographics";
 import type { Edition, EditionFields } from "./types";
 
 // Pure functions of (editions, now): which edition the homepage, /register and
@@ -121,3 +124,10 @@ export function nextBoundarySeconds(editions: Edition[], now: Date): number | nu
     .filter((at) => at > t);
   return upcoming.length ? Math.ceil((Math.min(...upcoming) - t) / 1000) : null;
 }
+
+/**
+ * Walk-ins can be added from the morning of a published date, and afterwards
+ * too, for names taken down on paper on the night.
+ */
+export const takesWalkIns = (edition: Edition, now: Date) =>
+  edition.status === "published" && editionDay(edition) <= dateIn(series.timeZone, now);

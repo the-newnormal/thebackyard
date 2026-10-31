@@ -14,6 +14,7 @@ import {
   type RegisterResult,
   type Registration,
   type RegistrationStore,
+  type WalkInResult,
   type Withdrawal,
 } from "./types";
 
@@ -40,6 +41,7 @@ type Row = {
   checked_in_at: Date | null;
   created_at: Date;
   queued_at: Date | null;
+  walk_in: boolean;
 };
 
 const toRegistration = (row: Row): Registration => ({
@@ -66,6 +68,7 @@ const toRegistration = (row: Row): Registration => ({
   checkedInAt: row.checked_in_at?.toISOString() ?? null,
   createdAt: row.created_at.toISOString(),
   queuedAt: row.queued_at?.toISOString() ?? null,
+  walkIn: row.walk_in,
 });
 
 type EditionRow = {
@@ -215,7 +218,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
         ) and exists (
           select 1 from pg_attribute
-          where attrelid = to_regclass('registrations') and attname = 'queued_at' and not attisdropped
+          where attrelid = to_regclass('registrations') and attname = 'walk_in' and not attisdropped
         ) as latest
     `;
     return Boolean(existing?.rls && existing.posters && existing.opt_outs && existing.latest);
@@ -265,7 +268,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           status text not null default 'confirmed',
           checked_in_at timestamptz,
           created_at timestamptz not null default now(),
-          queued_at timestamptz
+          queued_at timestamptz,
+          walk_in boolean not null default false
         )
       `;
       // Columns added since launch, for tables created before them.
@@ -278,7 +282,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           add column if not exists birthdate date,
           add column if not exists occupation text,
           add column if not exists school text,
-          add column if not exists queued_at timestamptz
+          add column if not exists queued_at timestamptz,
+          add column if not exists walk_in boolean not null default false
       `;
       await tx`
         create unique index if not exists registrations_event_email
@@ -551,6 +556,57 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           update registrations set status = 'confirmed' where code = ${code} returning *
         `;
         return { kind: "given", registration: toRegistration(updated) };
+      });
+    },
+
+    async addWalkIn(input): Promise<WalkInResult> {
+      await ready();
+      return sql.begin(async (tx): Promise<WalkInResult> => {
+        await lockEvent(tx, input.eventSlug);
+        const [edition] = await tx<Pick<EditionRow, "status">[]>`
+          select status from editions where slug = ${input.eventSlug}
+        `;
+        if (edition?.status !== "published") return { kind: "closed" };
+
+        const [existing] = await tx<Row[]>`
+          select * from registrations
+          where event_slug = ${input.eventSlug} and lower(email) = lower(${input.email})
+        `;
+        if (existing && existing.status !== "cancelled") {
+          return { kind: "duplicate", registration: toRegistration(existing) };
+        }
+        // Signed up, cancelled, then came anyway: keep what they told us then.
+        if (existing) {
+          const [row] = await tx<Row[]>`
+            update registrations
+            set status = 'confirmed', checked_in_at = now(), queued_at = null
+            where code = ${existing.code}
+            returning *
+          `;
+          return { kind: "restored", registration: toRegistration(row) };
+        }
+
+        for (let attempt = 0; ; attempt++) {
+          const [row] = await tx<Row[]>`
+            insert into registrations ${tx({
+              event_slug: input.eventSlug,
+              name: input.name,
+              email: input.email,
+              phone: input.phone,
+              dietary: input.dietary,
+              marketing_opt_in: input.marketingOptIn,
+              status: "confirmed",
+              checked_in_at: new Date(),
+              walk_in: true,
+              code: generateCode(),
+              pass_token: generatePassToken(),
+            })}
+            on conflict (code) do nothing
+            returning *
+          `;
+          if (row) return { kind: "added", registration: toRegistration(row) };
+          if (attempt >= 5) throw new Error("Could not allocate a unique code");
+        }
       });
     },
 

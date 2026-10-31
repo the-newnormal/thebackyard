@@ -66,12 +66,30 @@ export interface Registration {
   createdAt: string;
   /** When they were put back on the waitlist (see restore); null for everyone else. */
   queuedAt: string | null;
+  /** Let in on the night without signing up, and entered by an organiser. */
+  walkIn: boolean;
 }
 
 export type NewRegistration = Omit<
   Registration,
-  "code" | "passToken" | "status" | "checkedInAt" | "createdAt" | "queuedAt"
+  "code" | "passToken" | "status" | "checkedInAt" | "createdAt" | "queuedAt" | "walkIn"
 >;
+
+/** What an organiser takes down from a walk-in; the rest isn't asked. */
+export type NewWalkIn = Pick<
+  Registration,
+  "eventSlug" | "name" | "email" | "phone" | "dietary" | "marketingOptIn"
+>;
+
+export type WalkInResult =
+  /** Added as confirmed and checked in, over the limit if need be. */
+  | { kind: "added"; registration: Registration }
+  /** Their cancelled sign-up for the date, brought back and checked in. */
+  | { kind: "restored"; registration: Registration }
+  /** Already signed up for the date, confirmed or waitlisted: nothing changed. */
+  | { kind: "duplicate"; registration: Registration }
+  /** The date doesn't exist or isn't published. */
+  | { kind: "closed" };
 
 export type RegisterResult =
   | { kind: "created"; registration: Registration }
@@ -129,6 +147,11 @@ export interface RegistrationStore {
    * lock as register.
    */
   giveSpot(code: string, overLimit?: boolean): Promise<GiveSpotResult>;
+  /**
+   * Adds someone let in on the night, checked in, by their email address.
+   * Runs under the same lock as register.
+   */
+  addWalkIn(input: NewWalkIn): Promise<WalkInResult>;
   /** Checks in a confirmed guest, or undoes a check-in; never changes status. */
   setCheckedIn(code: string, checkedInAt: string | null): Promise<Registration | null>;
   /**
