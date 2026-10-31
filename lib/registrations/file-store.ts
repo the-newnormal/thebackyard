@@ -224,7 +224,7 @@ export function createFileStore(): RegistrationStore {
       return { confirmed: sum("confirmed"), waitlist: sum("waitlist") };
     },
 
-    giveSpot: (code) =>
+    giveSpot: (code, overLimit = false) =>
       exclusive(async (): Promise<GiveSpotResult> => {
         const rows = await load();
         const index = rows.findIndex((r) => r.code === code && r.status === "waitlist");
@@ -232,7 +232,9 @@ export function createFileStore(): RegistrationStore {
         const slug = rows[index].eventSlug;
         const edition = (await loadEditions()).find((e) => e.slug === slug);
         const capacity = edition ? edition.capacity : null;
-        if (capacity !== null && confirmedHeadcount(rows, slug) + partySize(rows[index]) > capacity) {
+        const fits =
+          capacity === null || confirmedHeadcount(rows, slug) + partySize(rows[index]) <= capacity;
+        if (!fits && !overLimit) {
           return { kind: "full" };
         }
         rows[index] = { ...rows[index], status: "confirmed" };

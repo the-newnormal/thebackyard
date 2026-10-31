@@ -124,9 +124,11 @@ export interface RegistrationStore {
   headcount(eventSlug: string): Promise<Headcount>;
   /**
    * "Give a spot": moves a waitlisted guest in, ahead of their turn if need
-   * be, as long as their party fits. Runs under the same lock as register.
+   * be, as long as their party fits; with `overLimit`, even if it doesn't
+   * (the limit stays, so the sign-up form stays full). Runs under the same
+   * lock as register.
    */
-  giveSpot(code: string): Promise<GiveSpotResult>;
+  giveSpot(code: string, overLimit?: boolean): Promise<GiveSpotResult>;
   /** Checks in a confirmed guest, or undoes a check-in; never changes status. */
   setCheckedIn(code: string, checkedInAt: string | null): Promise<Registration | null>;
   /**

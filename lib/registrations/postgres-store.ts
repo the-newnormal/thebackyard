@@ -529,7 +529,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
       return row;
     },
 
-    async giveSpot(code) {
+    async giveSpot(code, overLimit = false) {
       await ready();
       return sql.begin(async (tx): Promise<GiveSpotResult> => {
         const [found] = await tx<Pick<Row, "event_slug">[]>`
@@ -544,7 +544,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         `;
         const capacity = edition ? edition.capacity : null;
         const { used } = await occupancy(tx, row.event_slug);
-        if (capacity !== null && used + partySize(row) > capacity) return { kind: "full" };
+        if (!overLimit && capacity !== null && used + partySize(row) > capacity) {
+          return { kind: "full" };
+        }
         const [updated] = await tx<Row[]>`
           update registrations set status = 'confirmed' where code = ${code} returning *
         `;

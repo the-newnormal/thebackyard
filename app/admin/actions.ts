@@ -54,7 +54,10 @@ export async function setCheckedIn(formData: FormData) {
   refresh();
 }
 
-/** "Give a spot": lets a waitlisted guest in, out of turn if need be, while there's room. */
+/**
+ * "Give a spot": lets a waitlisted guest in, out of turn if need be. While
+ * there's room, or over the limit when the organiser confirmed that.
+ */
 export async function giveSpot(formData: FormData) {
   await requireAdmin();
   const code = codeFrom(formData);
@@ -65,7 +68,7 @@ export async function giveSpot(formData: FormData) {
   const edition = await store.getEdition(registration.eventSlug);
   // Nobody should get "you're in" for a date that's over or called off.
   if (!edition || edition.status === "cancelled" || hasEnded(edition, new Date())) return;
-  const result = await store.giveSpot(code);
+  const result = await store.giveSpot(code, formData.get("overLimit") === "true");
   if (result.kind === "given") announceSpots([result.registration]);
   refresh();
 }

@@ -247,20 +247,25 @@ function Row({
         {r.status === "waitlist" && allowPromote && (
           <form action={giveSpot}>
             <input type="hidden" name="code" value={r.code} />
-            <button
-              type="submit"
-              disabled={!fits}
-              title={
-                fits
-                  ? undefined
-                  : autoFill
-                    ? "No spots free. The next one to open up goes to #1 in line."
-                    : "No spots free. Raise the limit on the date’s page first."
-              }
-              className="rounded-full border-2 border-forest/20 px-4 py-2 text-sm font-bold text-forest hover:border-forest disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-forest/20"
-            >
-              Give a spot
-            </button>
+            {fits ? (
+              <button
+                type="submit"
+                className="rounded-full border-2 border-forest/20 px-4 py-2 text-sm font-bold text-forest hover:border-forest"
+              >
+                Give a spot
+              </button>
+            ) : (
+              // Full: over the limit without raising it, so the sign-up form stays full.
+              <>
+                <input type="hidden" name="overLimit" value="true" />
+                <ConfirmButton
+                  confirm={`No spots are free. Give ${r.name}${partySize(r) > 1 ? ` (party of ${partySize(r)})` : ""} a spot over the limit? The limit stays as it is, so nobody new gets in through the sign-up form.`}
+                  className="rounded-full border-2 border-dashed border-forest/30 px-4 py-2 text-sm font-bold text-forest hover:border-forest"
+                >
+                  Give a spot
+                </ConfirmButton>
+              </>
+            )}
           </form>
         )}
         {r.status === "cancelled" ? (
