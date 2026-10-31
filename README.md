@@ -24,7 +24,8 @@ with its own date, venue, capacity, poster and guest list.
 - **`/admin/editions`**: plan, publish, edit, call off and add posters to dates
 - **`/admin/opt-outs`**: record people who emailed to stop getting updates, by
   email address or number; they're left out of "Want updates" and the CSV's
-  `wants_updates` on every date until removed
+  `wants_updates` on every date until removed. Cancelling or releasing a spot
+  doesn't take anyone off; deleting a sign-up does
 
 Built with Next.js 16 (App Router, Cache Components), Tailwind CSS 4 and Postgres.
 

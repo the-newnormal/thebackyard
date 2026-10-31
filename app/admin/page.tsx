@@ -198,10 +198,11 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
           note={`${waitlist.length} sign-ups`}
           tone="bg-mustard text-forest-deep"
         />
+        {/* Cancelling a spot isn't opting out, so cancelled sign-ups count too. */}
         <Stat
           label="Want updates"
-          value={active.filter((r) => wantsUpdates(r, optedOut)).length}
-          note="not opted out"
+          value={registrations.filter((r) => wantsUpdates(r, optedOut)).length}
+          note="not opted out, incl. cancelled"
           tone="bg-card text-forest border-2 border-forest/15"
         />
       </div>
