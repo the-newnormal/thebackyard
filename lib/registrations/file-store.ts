@@ -16,6 +16,7 @@ import {
   type RegisterResult,
   type Registration,
   type RegistrationStore,
+  type WalkInResult,
   type Withdrawal,
 } from "./types";
 
@@ -63,6 +64,7 @@ const LATER_FIELDS = {
   occupation: null,
   school: null,
   queuedAt: null,
+  walkIn: false,
 } satisfies Partial<Registration>;
 
 const load = async () =>
@@ -194,6 +196,7 @@ export function createFileStore(): RegistrationStore {
           checkedInAt: null,
           createdAt: new Date().toISOString(),
           queuedAt: null,
+          walkIn: false,
         };
         // Coming back after cancelling: start over with a new code and pass link.
         const next = rows.filter((r) => r !== existing);
@@ -240,6 +243,45 @@ export function createFileStore(): RegistrationStore {
         rows[index] = { ...rows[index], status: "confirmed" };
         await save(rows);
         return { kind: "given", registration: rows[index] };
+      }),
+
+    addWalkIn: (input) =>
+      exclusive(async (): Promise<WalkInResult> => {
+        const edition = (await loadEditions()).find((e) => e.slug === input.eventSlug);
+        if (edition?.status !== "published") return { kind: "closed" };
+        const rows = await load();
+        const email = input.email.toLowerCase();
+        const index = rows.findIndex(
+          (r) => r.eventSlug === input.eventSlug && r.email.toLowerCase() === email,
+        );
+        const now = new Date().toISOString();
+        if (index !== -1 && rows[index].status !== "cancelled") {
+          return { kind: "duplicate", registration: rows[index] };
+        }
+        // Signed up, cancelled, then came anyway: keep what they told us then.
+        if (index !== -1) {
+          rows[index] = { ...rows[index], status: "confirmed", checkedInAt: now, queuedAt: null };
+          await save(rows);
+          return { kind: "restored", registration: rows[index] };
+        }
+
+        let code = generateCode();
+        while (rows.some((r) => r.code === code)) code = generateCode();
+        const registration: Registration = {
+          ...LATER_FIELDS,
+          ...input,
+          code,
+          passToken: generatePassToken(),
+          guests: 0,
+          dietaryNotes: null,
+          heardFrom: null,
+          status: "confirmed",
+          checkedInAt: now,
+          createdAt: now,
+          walkIn: true,
+        };
+        await save([...rows, registration]);
+        return { kind: "added", registration };
       }),
 
     setCheckedIn: (code, checkedInAt) =>

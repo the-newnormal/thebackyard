@@ -14,6 +14,7 @@ import {
   editionState,
   fillsFromWaitlist,
   isRegistrationOpen,
+  takesWalkIns,
 } from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured } from "@/lib/email";
@@ -32,6 +33,7 @@ import { EditionBadge } from "./edition-badge";
 import { setRegistrationWindow } from "./editions/actions";
 import { RegistrationList } from "./registration-list";
 import { ReminderForm } from "./reminder-form";
+import { WalkInForm } from "./walk-in-form";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -98,6 +100,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
   const confirmed = active.filter((r) => r.status === "confirmed");
   const waitlist = active.filter((r) => r.status === "waitlist");
   const checkedIn = active.filter((r) => r.checkedInAt);
+  const walkIns = checkedIn.filter((r) => r.walkIn).length;
   const { capacity } = edition;
   // Giving a spot emails a confirmation; pointless once it's over or called off.
   const allowPromote = state !== "past" && state !== "cancelled";
@@ -189,7 +192,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         <Stat
           label="Checked in"
           value={people(checkedIn)}
-          note={`${checkedIn.length} sign-ups`}
+          note={`${checkedIn.length} sign-ups${walkIns ? ` · incl. ${walkIns} walk-in${walkIns === 1 ? "" : "s"}` : ""}`}
           tone="bg-lime text-forest-deep"
         />
         <Stat
@@ -244,6 +247,8 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
           <Breakdown title="Top schools" rows={schools} footnote="Students only." />
         )}
       </div>
+
+      {takesWalkIns(edition, now) && <WalkInForm slug={edition.slug} />}
 
       <RegistrationList
         registrations={registrations}

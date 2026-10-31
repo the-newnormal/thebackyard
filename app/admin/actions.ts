@@ -11,13 +11,14 @@ import {
   createSessionToken,
   SESSION_TTL_SECONDS,
 } from "@/lib/admin-session";
-import { hasEnded } from "@/lib/editions/select";
+import { hasEnded, takesWalkIns } from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured, sendReminderEmails } from "@/lib/email";
 import { getStore } from "@/lib/registrations";
 import { announceSpots } from "@/lib/registrations/announce";
 import { isValidCode } from "@/lib/registrations/code";
 import { contactKey } from "@/lib/registrations/opt-outs";
+import { walkInSchema } from "@/lib/registrations/schema";
 
 export async function login(
   _prev: { error?: string },
@@ -99,6 +100,52 @@ export async function deleteRegistration(formData: FormData) {
   const withdrawal = await getStore().remove(code);
   if (withdrawal) announceSpots(withdrawal.promoted);
   refresh();
+}
+
+export type WalkInState = {
+  error?: string;
+  /** What was typed, kept after a mistake so it can be fixed rather than retyped. */
+  values?: Record<"name" | "email" | "phone" | "dietary" | "wantsUpdates", string>;
+  added?: { name: string; code: string; restored: boolean };
+};
+
+/** Adds someone let in on the night: confirmed and checked in, over the limit if need be. */
+export async function addWalkIn(_prev: WalkInState, formData: FormData): Promise<WalkInState> {
+  await requireAdmin();
+  const field = (name: string) => String(formData.get(name) ?? "");
+  const values = {
+    name: field("name"),
+    email: field("email"),
+    phone: field("phone"),
+    dietary: field("dietary"),
+    wantsUpdates: field("wantsUpdates"),
+  };
+  const parsed = walkInSchema.safeParse(values);
+  if (!parsed.success) return { error: parsed.error.issues[0].message, values };
+
+  const store = getStore();
+  const edition = await store.getEdition(field("slug"));
+  const closed = { error: "Walk-ins can only be added from the day of a published date.", values };
+  if (!edition || !takesWalkIns(edition, new Date())) return closed;
+  const result = await store.addWalkIn({
+    ...parsed.data,
+    eventSlug: edition.slug,
+    // Walk-ins haven't agreed through the sign-up form, so only if they said yes.
+    marketingOptIn: values.wantsUpdates === "on",
+  });
+  if (result.kind === "closed") return closed;
+  if (result.kind === "duplicate") {
+    const r = result.registration;
+    const where =
+      r.status === "waitlist" ? "on the waitlist" : r.checkedInAt ? "checked in" : "confirmed";
+    return {
+      error: `${r.name} already signed up (${r.code}, ${where}). Find them in the list below.`,
+      values,
+    };
+  }
+  refresh();
+  const { name, code } = result.registration;
+  return { added: { name, code, restored: result.kind === "restored" } };
 }
 
 export type ReminderState = { sent?: number; failed?: string[]; error?: string };

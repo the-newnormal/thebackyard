@@ -179,15 +179,25 @@ function Row({
             {r.code}
           </span>
           <StatusBadge registration={r} place={place} />
+          {r.walkIn && (
+            <span className="rounded-full bg-orange/20 px-2 py-0.5 text-xs font-bold text-forest-deep">
+              Walk-in
+            </span>
+          )}
         </div>
         <p className="mt-1 text-sm text-muted">
           <a href={`mailto:${r.email}`} className="hover:text-forest hover:underline">
             {r.email}
           </a>
-          {" · "}
-          <a href={`tel:${r.phone}`} className="hover:text-forest hover:underline">
-            {r.phone}
-          </a>
+          {/* Walk-ins don't have to give a number. */}
+          {r.phone && (
+            <>
+              {" · "}
+              <a href={`tel:${r.phone}`} className="hover:text-forest hover:underline">
+                {r.phone}
+              </a>
+            </>
+          )}
           {r.phoneVerified && (
             <span className="text-forest" title="Confirmed with a texted code">
               {" "}

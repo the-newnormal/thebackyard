@@ -92,3 +92,23 @@ export const registrationSchema = z
   }));
 
 export type RegistrationInput = z.infer<typeof registrationSchema>;
+
+/** What an organiser takes down from a walk-in: no number needed, unlike a sign-up. */
+export const walkInSchema = z.object({
+  name: z.string().trim().min(2, "Add their name").max(80, "That name is a bit long"),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(200, "That email is a bit long")
+    .regex(EMAIL_PATTERN, "That email doesn’t look right"),
+  phone: z
+    .string()
+    .trim()
+    .transform(normalizePhone)
+    .refine(
+      (v) => v === "" || PHONE_PATTERN.test(v),
+      "Use an 8-digit SG number, or + and the country code",
+    ),
+  dietary: z.enum(dietaryValues, "Pick one"),
+});
