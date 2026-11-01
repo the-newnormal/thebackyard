@@ -108,7 +108,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
   const allowReminder =
     edition.status === "published" &&
     now < new Date(edition.startsAt) &&
-    confirmed.length > 0 &&
+    confirmed.some((r) => r.email) &&
     isEmailConfigured();
   const day = editionDay(edition);
 
@@ -175,7 +175,9 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
           >
             Export CSV
           </a>
-          {allowReminder && <ReminderForm slug={edition.slug} guests={confirmed.length} />}
+          {allowReminder && (
+            <ReminderForm slug={edition.slug} guests={confirmed.filter((r) => r.email).length} />
+          )}
         </div>
       </div>
 
@@ -245,7 +247,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
           footnote="Others includes everyone who picked a more specific race."
         />
         {schools.length > 0 && (
-          <Breakdown title="Top schools" rows={schools} footnote="Students only." />
+          <Breakdown title="Top schools" rows={schools} footnote="Students, and walk-ins (asked everyone)." />
         )}
       </div>
 

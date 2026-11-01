@@ -65,6 +65,7 @@ const LATER_FIELDS = {
   school: null,
   queuedAt: null,
   walkIn: false,
+  age: null,
 } satisfies Partial<Registration>;
 
 const load = async () =>
@@ -197,6 +198,7 @@ export function createFileStore(): RegistrationStore {
           createdAt: new Date().toISOString(),
           queuedAt: null,
           walkIn: false,
+          age: null,
         };
         // Coming back after cancelling: start over with a new code and pass link.
         const next = rows.filter((r) => r !== existing);
@@ -251,9 +253,9 @@ export function createFileStore(): RegistrationStore {
         if (edition?.status !== "published") return { kind: "closed" };
         const rows = await load();
         const email = input.email.toLowerCase();
-        const index = rows.findIndex(
-          (r) => r.eventSlug === input.eventSlug && r.email.toLowerCase() === email,
-        );
+        const index = email
+          ? rows.findIndex((r) => r.eventSlug === input.eventSlug && r.email.toLowerCase() === email)
+          : -1;
         const now = new Date().toISOString();
         if (index !== -1 && rows[index].status !== "cancelled") {
           return { kind: "duplicate", registration: rows[index] };

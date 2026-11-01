@@ -182,7 +182,7 @@ export async function sendConfirmationEmail(
   registration: Registration,
   edition: Edition,
 ): Promise<boolean> {
-  const mail = mailer("Confirmation");
+  const mail = registration.email ? mailer("Confirmation") : null;
   if (!mail) return false;
   try {
     return await mail.send(confirmationEmail(registration, edition));

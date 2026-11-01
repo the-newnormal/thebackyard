@@ -106,7 +106,10 @@ export async function deleteRegistration(formData: FormData) {
 export type WalkInState = {
   error?: string;
   /** What was typed, kept after a mistake so it can be fixed rather than retyped. */
-  values?: Record<"name" | "email" | "phone" | "dietary" | "wantsUpdates", string>;
+  values?: Record<
+    "name" | "age" | "school" | "email" | "phone" | "dietary" | "wantsUpdates",
+    string
+  >;
   added?: { name: string; code: string; restored: boolean };
 };
 
@@ -116,6 +119,8 @@ export async function addWalkIn(_prev: WalkInState, formData: FormData): Promise
   const field = (name: string) => String(formData.get(name) ?? "");
   const values = {
     name: field("name"),
+    age: field("age"),
+    school: field("school"),
     email: field("email"),
     phone: field("phone"),
     dietary: field("dietary"),
@@ -165,7 +170,10 @@ export async function sendReminders(
     return { error: "Reminders only go out for a published date that hasn’t started." };
   }
   if (!isEmailConfigured()) return { error: "Email isn’t set up, so nothing was sent." };
-  const guests = (await store.list(edition.slug)).filter((r) => r.status === "confirmed");
+  // Walk-ins needn't have given an email.
+  const guests = (await store.list(edition.slug)).filter(
+    (r) => r.status === "confirmed" && r.email,
+  );
   const starts = (e: Edition) => new Date(e.startsAt).getTime();
   const first = !editions.some((e) => e.status === "published" && starts(e) < starts(edition));
   return sendReminderEmails(guests, edition, { first, now });
