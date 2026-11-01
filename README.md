@@ -138,7 +138,8 @@ and `marketing_opt_outs` tables are created automatically on first use.
   confirm, over the limit without raising it, so the sign-up form stays full),
   cancel, restore or permanently delete (for personal-data requests) from
   `/admin`. Once a date is over or called off, guests can't release their
-  spot and nobody can be given one.
+  spot. A spot can still be given after the date (say, to someone waitlisted
+  who came anyway), without an email; not on a called-off date.
 - The tables are created on first use (and new columns added to existing ones)
   with row-level security enabled and no policies, so on Supabase they aren't
   readable through the REST API; the app connects as the table owner.

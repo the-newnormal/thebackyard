@@ -102,8 +102,9 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
   const checkedIn = active.filter((r) => r.checkedInAt);
   const walkIns = checkedIn.filter((r) => r.walkIn).length;
   const { capacity } = edition;
-  // Giving a spot emails a confirmation; pointless once it's over or called off.
-  const allowPromote = state !== "past" && state !== "cancelled";
+  // Not for a called-off date. Once it's over, giving a spot only fixes the
+  // record (someone waitlisted came anyway): nobody is emailed by then.
+  const allowPromote = state !== "cancelled";
   const allowReminder =
     edition.status === "published" &&
     now < new Date(edition.startsAt) &&
@@ -210,7 +211,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         />
       </div>
 
-      {allowPromote && !isEmailConfigured() && (
+      {allowPromote && state !== "past" && !isEmailConfigured() && (
         <p className="mt-3 rounded-2xl bg-mustard/30 px-5 py-4 text-ink">
           Emails are off, so guests let in off the waitlist aren’t told. Message them yourself —
           their email and phone are in the list below.
