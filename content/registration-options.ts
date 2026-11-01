@@ -795,7 +795,7 @@ const PRIVATE_INSTITUTIONS = [
   "Zhicheng Private School",
 ];
 
-const NOT_LISTED = "Others";
+export const NOT_LISTED = "Others";
 
 /** Every school once, A-Z ignoring case (as the sheet asks), with "Others" last. */
 export const SCHOOLS: readonly string[] = [

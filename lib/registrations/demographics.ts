@@ -6,9 +6,12 @@ import type { Registration } from "./types";
 export const editionDay = (edition: { startsAt: string }) =>
   dateIn(series.timeZone, new Date(edition.startsAt));
 
-/** How old they'll be on `day` (their edition's day), or null if we didn't ask. */
-export function ageOnDay(r: Pick<Registration, "birthdate">, day: string): number | null {
-  return r.birthdate ? ageOn(r.birthdate, day) : null;
+/**
+ * How old they'll be on `day` (their edition's day): from their birthdate, or
+ * the age a walk-in gave. Null if we didn't ask.
+ */
+export function ageOnDay(r: Pick<Registration, "birthdate" | "age">, day: string): number | null {
+  return r.birthdate ? ageOn(r.birthdate, day) : r.age;
 }
 
 export const AGE_GROUPS = [

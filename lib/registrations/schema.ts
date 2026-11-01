@@ -93,15 +93,22 @@ export const registrationSchema = z
 
 export type RegistrationInput = z.infer<typeof registrationSchema>;
 
-/** What an organiser takes down from a walk-in: no number needed, unlike a sign-up. */
+/** What an organiser takes down from a walk-in: age and school, contact details if they like. */
 export const walkInSchema = z.object({
   name: z.string().trim().min(2, "Add their name").max(80, "That name is a bit long"),
+  age: z
+    .string()
+    .trim()
+    .regex(/^\d{1,3}$/, "Add their age in years")
+    .transform(Number)
+    .pipe(z.number().min(5, "Check their age").max(100, "Check their age")),
+  school: z.string().trim().min(2, "Add their school").max(100, "That school name is a bit long"),
   email: z
     .string()
     .trim()
     .toLowerCase()
     .max(200, "That email is a bit long")
-    .regex(EMAIL_PATTERN, "That email doesn’t look right"),
+    .refine((v) => v === "" || EMAIL_PATTERN.test(v), "That email doesn’t look right"),
   phone: z
     .string()
     .trim()

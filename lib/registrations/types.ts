@@ -68,18 +68,23 @@ export interface Registration {
   queuedAt: string | null;
   /** Let in on the night without signing up, and entered by an organiser. */
   walkIn: boolean;
+  /** Walk-ins give their age instead of a birthdate; null for sign-ups. */
+  age: number | null;
 }
 
 export type NewRegistration = Omit<
   Registration,
-  "code" | "passToken" | "status" | "checkedInAt" | "createdAt" | "queuedAt" | "walkIn"
+  "code" | "passToken" | "status" | "checkedInAt" | "createdAt" | "queuedAt" | "walkIn" | "age"
 >;
 
-/** What an organiser takes down from a walk-in; the rest isn't asked. */
+/**
+ * What an organiser takes down from a walk-in; the rest isn't asked. Email
+ * and phone can be "" (not given).
+ */
 export type NewWalkIn = Pick<
   Registration,
-  "eventSlug" | "name" | "email" | "phone" | "dietary" | "marketingOptIn"
->;
+  "eventSlug" | "name" | "email" | "phone" | "dietary" | "marketingOptIn" | "school"
+> & { age: number };
 
 export type WalkInResult =
   /** Added as confirmed and checked in, over the limit if need be. */
@@ -148,8 +153,8 @@ export interface RegistrationStore {
    */
   giveSpot(code: string, overLimit?: boolean): Promise<GiveSpotResult>;
   /**
-   * Adds someone let in on the night, checked in, by their email address.
-   * Runs under the same lock as register.
+   * Adds someone let in on the night, checked in. An email, when given,
+   * finds them if they already signed up. Runs under the same lock as register.
    */
   addWalkIn(input: NewWalkIn): Promise<WalkInResult>;
   /** Checks in a confirmed guest, or undoes a check-in; never changes status. */

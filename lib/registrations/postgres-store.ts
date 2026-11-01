@@ -42,6 +42,7 @@ type Row = {
   created_at: Date;
   queued_at: Date | null;
   walk_in: boolean;
+  age: number | null;
 };
 
 const toRegistration = (row: Row): Registration => ({
@@ -69,6 +70,7 @@ const toRegistration = (row: Row): Registration => ({
   createdAt: row.created_at.toISOString(),
   queuedAt: row.queued_at?.toISOString() ?? null,
   walkIn: row.walk_in,
+  age: row.age,
 });
 
 type EditionRow = {
@@ -218,8 +220,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
         ) and exists (
           select 1 from pg_attribute
-          where attrelid = to_regclass('registrations') and attname = 'walk_in' and not attisdropped
-        ) as latest
+          where attrelid = to_regclass('registrations') and attname = 'age' and not attisdropped
+        ) and to_regclass('registrations_event_email_given') is not null as latest
     `;
     return Boolean(existing?.rls && existing.posters && existing.opt_outs && existing.latest);
   };
@@ -269,7 +271,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           checked_in_at timestamptz,
           created_at timestamptz not null default now(),
           queued_at timestamptz,
-          walk_in boolean not null default false
+          walk_in boolean not null default false,
+          age integer
         )
       `;
       // Columns added since launch, for tables created before them.
@@ -283,12 +286,16 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           add column if not exists occupation text,
           add column if not exists school text,
           add column if not exists queued_at timestamptz,
-          add column if not exists walk_in boolean not null default false
+          add column if not exists walk_in boolean not null default false,
+          add column if not exists age integer
       `;
+      // One sign-up per email per date. Walk-ins needn't give an email, so
+      // blank ones don't count (this replaced an index that counted them).
       await tx`
-        create unique index if not exists registrations_event_email
-          on registrations (event_slug, lower(email))
+        create unique index if not exists registrations_event_email_given
+          on registrations (event_slug, lower(email)) where email <> ''
       `;
+      await tx`drop index if exists registrations_event_email`;
       // Supabase exposes the public schema over its REST API. With RLS on and
       // no policies, only the table owner (this app) can read the guest list.
       await tx`alter table registrations enable row level security`;
@@ -568,10 +575,12 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         `;
         if (edition?.status !== "published") return { kind: "closed" };
 
-        const [existing] = await tx<Row[]>`
-          select * from registrations
-          where event_slug = ${input.eventSlug} and lower(email) = lower(${input.email})
-        `;
+        const [existing] = input.email
+          ? await tx<Row[]>`
+              select * from registrations
+              where event_slug = ${input.eventSlug} and lower(email) = lower(${input.email})
+            `
+          : [];
         if (existing && existing.status !== "cancelled") {
           return { kind: "duplicate", registration: toRegistration(existing) };
         }
@@ -594,6 +603,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
               email: input.email,
               phone: input.phone,
               dietary: input.dietary,
+              school: input.school,
+              age: input.age,
               marketing_opt_in: input.marketingOptIn,
               status: "confirmed",
               checked_in_at: new Date(),

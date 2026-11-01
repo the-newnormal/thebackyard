@@ -44,13 +44,17 @@ export function contactKey(input: string): string | null {
 
 export const optOutSet = (optOuts: OptOut[]) => new Set(optOuts.map((o) => o.contact));
 
-/** They agreed to updates when they signed up, and haven't opted out since. */
+/**
+ * They agreed to updates when they signed up, haven't opted out since, and
+ * left a way to reach them (walk-ins needn't).
+ */
 export function wantsUpdates(
   r: Pick<Registration, "marketingOptIn" | "email" | "phone">,
   optedOut: ReadonlySet<string>,
 ): boolean {
   return (
     r.marketingOptIn &&
+    Boolean(r.email || r.phone) &&
     !optedOut.has(r.email.toLowerCase()) &&
     !optedOut.has(canonicalPhone(r.phone))
   );

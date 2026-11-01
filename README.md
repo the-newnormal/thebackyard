@@ -54,6 +54,7 @@ or redeploys:
    back on. Guests aren't emailed, so post on Instagram too. For someone who
    didn't sign up, **Add a walk-in** (from the morning of the date, and after
    it, for names taken down on paper) adds them checked in, even if it's full.
+   It asks their name, age and school; email and mobile are optional.
    Walk-ins only get updates if they say yes; they're marked in the list and
    the CSV's `walk_in`.
 

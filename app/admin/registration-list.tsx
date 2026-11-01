@@ -186,25 +186,30 @@ function Row({
           )}
         </div>
         <p className="mt-1 text-sm text-muted">
-          <a href={`mailto:${r.email}`} className="hover:text-forest hover:underline">
-            {r.email}
-          </a>
-          {/* Walk-ins don't have to give a number. */}
+          {/* Walk-ins needn't give an email or a number. */}
+          {r.email && (
+            <>
+              <a href={`mailto:${r.email}`} className="hover:text-forest hover:underline">
+                {r.email}
+              </a>
+              {" · "}
+            </>
+          )}
           {r.phone && (
             <>
-              {" · "}
               <a href={`tel:${r.phone}`} className="hover:text-forest hover:underline">
                 {r.phone}
               </a>
+              {r.phoneVerified && (
+                <span className="text-forest" title="Confirmed with a texted code">
+                  {" "}
+                  ✓ verified
+                </span>
+              )}
+              {" · "}
             </>
           )}
-          {r.phoneVerified && (
-            <span className="text-forest" title="Confirmed with a texted code">
-              {" "}
-              ✓ verified
-            </span>
-          )}
-          {" · "}registered {formatTimestamp(r.createdAt)}
+          registered {formatTimestamp(r.createdAt)}
         </p>
         {/* Folded away so the check-in table shows only what it needs. */}
         {about.length > 0 && (

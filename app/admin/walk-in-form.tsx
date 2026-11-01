@@ -1,8 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
+import { NOT_LISTED, SCHOOLS } from "@/content/registration-options";
 import { DIETARY_OPTIONS } from "@/lib/registrations/types";
 import { addWalkIn } from "./actions";
+
+// Suggestions only: any school can be typed.
+const schoolSuggestions = SCHOOLS.filter((s) => s !== NOT_LISTED);
 
 /** "Add a walk-in": someone let in on the night without signing up. */
 export function WalkInForm({ slug }: { slug: string }) {
@@ -22,11 +26,42 @@ export function WalkInForm({ slug }: { slug: string }) {
           <input name="name" required maxLength={80} autoComplete="off" className="field" defaultValue={v?.name} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-bold text-forest">Email</span>
+          <span className="mb-1 block text-sm font-bold text-forest">Age</span>
+          <input
+            name="age"
+            type="number"
+            inputMode="numeric"
+            required
+            min={5}
+            max={100}
+            className="field"
+            defaultValue={v?.age}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold text-forest">School</span>
+          <input
+            name="school"
+            list="walk-in-schools"
+            required
+            maxLength={100}
+            autoComplete="off"
+            className="field"
+            defaultValue={v?.school}
+          />
+          <datalist id="walk-in-schools">
+            {schoolSuggestions.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold text-forest">
+            Email <span className="font-normal text-muted">optional</span>
+          </span>
           <input
             name="email"
             type="email"
-            required
             maxLength={200}
             autoComplete="off"
             className="field"
@@ -66,7 +101,8 @@ export function WalkInForm({ slug }: { slug: string }) {
         <span>
           They’d like updates about future Backyards
           <span className="block text-sm text-muted">
-            Ask them: walk-ins haven’t agreed to updates through the sign-up form.
+            Ask them: walk-ins haven’t agreed to updates through the sign-up form. Needs an email
+            or mobile.
           </span>
         </span>
       </label>
