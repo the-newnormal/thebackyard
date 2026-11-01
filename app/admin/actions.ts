@@ -11,7 +11,7 @@ import {
   createSessionToken,
   SESSION_TTL_SECONDS,
 } from "@/lib/admin-session";
-import { hasEnded, takesWalkIns } from "@/lib/editions/select";
+import { takesWalkIns } from "@/lib/editions/select";
 import type { Edition } from "@/lib/editions/types";
 import { isEmailConfigured, sendReminderEmails } from "@/lib/email";
 import { getStore } from "@/lib/registrations";
@@ -67,8 +67,9 @@ export async function giveSpot(formData: FormData) {
   const registration = await store.getByCode(code);
   if (!registration) return;
   const edition = await store.getEdition(registration.eventSlug);
-  // Nobody should get "you're in" for a date that's over or called off.
-  if (!edition || edition.status === "cancelled" || hasEnded(edition, new Date())) return;
+  // Not for a called-off date. After the date it only fixes the record:
+  // announceSpots doesn't email "you're in" once it's over.
+  if (!edition || edition.status === "cancelled") return;
   const result = await store.giveSpot(code, formData.get("overLimit") === "true");
   if (result.kind === "given") announceSpots([result.registration]);
   refresh();
