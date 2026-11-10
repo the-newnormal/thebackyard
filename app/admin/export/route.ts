@@ -23,6 +23,7 @@ const columns = (day: string, optedOut: ReadonlySet<string>): Column[] => [
   ["age_on_event_day", (r) => ageOnDay(r, day)],
   ["occupation", (r) => r.occupation],
   ["school", (r) => r.school],
+  ["postal_code", (r) => r.postalCode],
   ["party_size", (r) => partySize(r)],
   ["guests", (r) => r.guests],
   ["dietary", (r) => r.dietary],

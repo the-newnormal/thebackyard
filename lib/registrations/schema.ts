@@ -11,6 +11,7 @@ import { series } from "@/content/series";
 import { birthdateProblem, dateIn, isUnder18 } from "./birthdate";
 import { EMAIL_PATTERN } from "./email";
 import { normalizePhone, PHONE_PATTERN } from "./phone";
+import { isPostalCode, normalizePostalCode, POSTAL_CODE_ERROR } from "./postal-code";
 import { DIETARY_OPTIONS } from "./types";
 
 export { normalizePhone };
@@ -27,6 +28,11 @@ const optionalText = (max: number) =>
     .transform((v) => v.replace(/\r\n?/g, "\n").trim())
     .pipe(z.string().max(max, `Keep it under ${max} characters`))
     .transform((v) => v || null);
+
+export const postalCodeSchema = z
+  .string()
+  .transform(normalizePostalCode)
+  .refine(isPostalCode, POSTAL_CODE_ERROR);
 
 export const phoneSchema = z
   .string()
@@ -53,6 +59,7 @@ export const registrationSchema = z
         const problem = birthdateProblem(v, dateIn(series.timeZone));
         if (problem) ctx.addIssue({ code: "custom", message: problem });
       }),
+    postalCode: postalCodeSchema,
     occupation: z.enum(OCCUPATIONS, "Pick one"),
     school: z.string().trim(),
     schoolOther: optionalText(100),
@@ -93,7 +100,10 @@ export const registrationSchema = z
 
 export type RegistrationInput = z.infer<typeof registrationSchema>;
 
-/** What an organiser takes down from a walk-in: age and school, contact details if they like. */
+/**
+ * What an organiser takes down from a walk-in: age, school and postal code,
+ * contact details if they like.
+ */
 export const walkInSchema = z.object({
   name: z.string().trim().min(2, "Add their name").max(80, "That name is a bit long"),
   age: z
@@ -103,6 +113,7 @@ export const walkInSchema = z.object({
     .transform(Number)
     .pipe(z.number().min(5, "Check their age").max(100, "Check their age")),
   school: z.string().trim().min(2, "Add their school").max(100, "That school name is a bit long"),
+  postalCode: postalCodeSchema,
   email: z
     .string()
     .trim()

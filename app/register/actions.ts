@@ -35,6 +35,7 @@ const FIELDS = [
   "sex",
   "race",
   "birthdate",
+  "postalCode",
   "occupation",
   "school",
   "schoolOther",
@@ -121,6 +122,8 @@ export async function register(
   // One opened before the Terms (it asked Yes or No to updates) or before the
   // guardian tick-box can't show what registering now asks.
   if (!formData.has("guardianConsent")) return { message: RELOAD };
+  // Or before it asked for a postal code.
+  if (!formData.has("postalCode")) return { message: RELOAD };
 
   let target;
   try {
@@ -169,6 +172,7 @@ export async function register(
     sex: answers.sex,
     race: answers.race,
     birthdate: answers.birthdate,
+    postalCode: answers.postalCode,
     occupation: answers.occupation,
     school: answers.school,
     // Everyone registers for themselves now.

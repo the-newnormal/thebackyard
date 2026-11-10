@@ -8,7 +8,7 @@ with its own date, venue, capacity, poster and guest list.
 
 - **`/`**: landing page with the next date, the "Why Backyard" story, FAQ
 - **`/register`**: free registration on a page of its own, one question per screen:
-  name, residency, sex, race, date of birth, occupation (and school, for students),
+  name, residency, sex, race, date of birth, postal code, occupation (and school, for students),
   dietary needs, email, mobile (confirmed with a texted code when Twilio is set up)
   and agreeing to the Terms (under-18s also tick that a parent or guardian agreed),
   for whichever date is taking sign-ups (`?edition=<slug>` for a specific one).
@@ -54,7 +54,7 @@ or redeploys:
    back on. Guests aren't emailed, so post on Instagram too. For someone who
    didn't sign up, **Add a walk-in** (from the morning of the date, and after
    it, for names taken down on paper) adds them checked in, even if it's full.
-   It asks their name, age and school; email and mobile are optional.
+   It asks their name, age, school and postal code; email and mobile are optional.
    Walk-ins only get updates if they say yes; they're marked in the list and
    the CSV's `walk_in`.
 
@@ -106,6 +106,9 @@ and `marketing_opt_outs` tables are created automatically on first use.
   the Registration Questions sheet; students (secondary, ITE, JC, poly or
   university) pick their school from one A-Z list of every school, or pick
   "Others" and type its name, which is saved as their school.
+- Everyone gives a 6-digit Singapore postal code (sign-ups and walk-ins), saved
+  as `postal_code` and in the CSV export. Sign-ups from before it was asked
+  have none; a form opened before then is asked to reload.
 - One registration per email per date. Re-submitting with the same email and
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.

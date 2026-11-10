@@ -107,7 +107,7 @@ export type WalkInState = {
   error?: string;
   /** What was typed, kept after a mistake so it can be fixed rather than retyped. */
   values?: Record<
-    "name" | "age" | "school" | "email" | "phone" | "dietary" | "wantsUpdates",
+    "name" | "age" | "school" | "postalCode" | "email" | "phone" | "dietary" | "wantsUpdates",
     string
   >;
   added?: { name: string; code: string; restored: boolean };
@@ -121,6 +121,7 @@ export async function addWalkIn(_prev: WalkInState, formData: FormData): Promise
     name: field("name"),
     age: field("age"),
     school: field("school"),
+    postalCode: field("postalCode"),
     email: field("email"),
     phone: field("phone"),
     dietary: field("dietary"),

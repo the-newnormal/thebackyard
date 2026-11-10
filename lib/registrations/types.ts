@@ -50,6 +50,8 @@ export interface Registration {
   occupation: string | null;
   /** Only asked of students. */
   school: string | null;
+  /** Where they live, as a 6-digit SG postal code; null on sign-ups from before it was asked. */
+  postalCode: string | null;
   /** Friends registered alongside; only earlier sign-ups have any. */
   guests: number;
   dietary: Dietary;
@@ -84,7 +86,7 @@ export type NewRegistration = Omit<
 export type NewWalkIn = Pick<
   Registration,
   "eventSlug" | "name" | "email" | "phone" | "dietary" | "marketingOptIn" | "school"
-> & { age: number };
+> & { age: number; postalCode: string };
 
 export type WalkInResult =
   /** Added as confirmed and checked in, over the limit if need be. */
