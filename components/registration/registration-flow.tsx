@@ -570,6 +570,11 @@ export function RegistrationFlow({
     if (needsCode(saved.values, verifyPhone) && list.indexOf(to) > list.indexOf("phone")) {
       to = "phone";
     }
+    // Saved before a question was added (the postal code): ask it first.
+    const unanswered = list
+      .slice(0, list.indexOf(to))
+      .find((s) => s !== "code" && validate(s, saved.values));
+    if (unanswered) to = unanswered;
     setValues(saved.values);
     setResumeSettled(true);
     setStarted(true);

@@ -107,8 +107,9 @@ and `marketing_opt_outs` tables are created automatically on first use.
   university) pick their school from one A-Z list of every school, or pick
   "Others" and type its name, which is saved as their school.
 - Everyone gives a 6-digit Singapore postal code (sign-ups and walk-ins), saved
-  as `postal_code` and in the CSV export. Sign-ups from before it was asked
-  have none; a form opened before then is asked to reload.
+  as `postal_code`. The CSV exports it as `S018956`, so spreadsheets keep the
+  leading 0. Sign-ups from before it was asked have none; a sign-up or walk-in
+  form opened before then is asked to reload.
 - One registration per email per date. Re-submitting with the same email and
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.

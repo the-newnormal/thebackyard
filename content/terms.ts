@@ -11,7 +11,7 @@ export type TermsBlock = string | TermsItem[];
 
 export type TermsSection = { heading: string; blocks: TermsBlock[] };
 
-const updated = "18 October 2026";
+const updated = "10 November 2026";
 const dated = `Effective date: 18 October 2026 · Last updated: ${updated}`;
 
 export const terms = {

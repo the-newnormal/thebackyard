@@ -74,6 +74,8 @@ export function RegistrationList({
     // Only treat the query as a phone number if it looks like one, so a code
     // like "N299QS" doesn't also match every phone containing "299".
     const phoneQuery = /^[\d\s()+-]+$/.test(q) ? normalizePhone(q) : "";
+    // Postal codes as the list shows them ("S238801") or as people write them ("238 801").
+    const postalQuery = /^s?[\d\s]+$/.test(q) ? q.replace(/^s|\s/g, "") : "";
     // The waitlist reads top to bottom in the order spots are given out.
     const rows = filter === "waitlist" ? queue : registrations;
     return rows.filter(
@@ -83,7 +85,7 @@ export function RegistrationList({
           r.name.toLowerCase().includes(q) ||
           r.email.includes(q) ||
           r.school?.toLowerCase().includes(q) ||
-          r.postalCode?.includes(q) ||
+          (postalQuery !== "" && r.postalCode?.includes(postalQuery)) ||
           (phoneQuery !== "" && normalizePhone(r.phone).includes(phoneQuery)) ||
           r.code.toLowerCase().includes(q)),
     );

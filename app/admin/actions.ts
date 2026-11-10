@@ -127,6 +127,13 @@ export async function addWalkIn(_prev: WalkInState, formData: FormData): Promise
     dietary: field("dietary"),
     wantsUpdates: field("wantsUpdates"),
   };
+  // A dashboard opened before the postal code was asked has no box for it.
+  if (!formData.has("postalCode")) {
+    return {
+      error: "The dashboard has changed since you opened it. Reload the page to add walk-ins.",
+      values,
+    };
+  }
   const parsed = walkInSchema.safeParse(values);
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
 
