@@ -63,6 +63,7 @@ const LATER_FIELDS = {
   birthdate: null,
   occupation: null,
   school: null,
+  postalCode: null,
   queuedAt: null,
   walkIn: false,
   age: null,
@@ -260,9 +261,16 @@ export function createFileStore(): RegistrationStore {
         if (index !== -1 && rows[index].status !== "cancelled") {
           return { kind: "duplicate", registration: rows[index] };
         }
-        // Signed up, cancelled, then came anyway: keep what they told us then.
+        // Signed up, cancelled, then came anyway: keep what they told us then,
+        // plus the postal code if they signed up before it was asked.
         if (index !== -1) {
-          rows[index] = { ...rows[index], status: "confirmed", checkedInAt: now, queuedAt: null };
+          rows[index] = {
+            ...rows[index],
+            postalCode: rows[index].postalCode ?? input.postalCode,
+            status: "confirmed",
+            checkedInAt: now,
+            queuedAt: null,
+          };
           await save(rows);
           return { kind: "restored", registration: rows[index] };
         }

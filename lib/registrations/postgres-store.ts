@@ -32,6 +32,7 @@ type Row = {
   birthdate: Date | null;
   occupation: string | null;
   school: string | null;
+  postal_code: string | null;
   guests: number;
   dietary: Registration["dietary"];
   dietary_notes: string | null;
@@ -60,6 +61,7 @@ const toRegistration = (row: Row): Registration => ({
   birthdate: row.birthdate?.toISOString().slice(0, 10) ?? null,
   occupation: row.occupation,
   school: row.school,
+  postalCode: row.postal_code,
   guests: row.guests,
   dietary: row.dietary,
   dietaryNotes: row.dietary_notes,
@@ -220,7 +222,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
         ) and exists (
           select 1 from pg_attribute
-          where attrelid = to_regclass('registrations') and attname = 'age' and not attisdropped
+          where attrelid = to_regclass('registrations') and attname = 'postal_code' and not attisdropped
         ) and to_regclass('registrations_event_email_given') is not null as latest
     `;
     return Boolean(existing?.rls && existing.posters && existing.opt_outs && existing.latest);
@@ -262,6 +264,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           birthdate date,
           occupation text,
           school text,
+          postal_code text,
           guests integer not null default 0,
           dietary text not null,
           dietary_notes text,
@@ -287,7 +290,8 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           add column if not exists school text,
           add column if not exists queued_at timestamptz,
           add column if not exists walk_in boolean not null default false,
-          add column if not exists age integer
+          add column if not exists age integer,
+          add column if not exists postal_code text
       `;
       // One sign-up per email per date. Walk-ins needn't give an email, so
       // blank ones don't count (this replaced an index that counted them).
@@ -484,6 +488,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           birthdate: input.birthdate,
           occupation: input.occupation,
           school: input.school,
+          postal_code: input.postalCode,
           guests: input.guests,
           dietary: input.dietary,
           dietary_notes: input.dietaryNotes,
@@ -584,11 +589,13 @@ export function createPostgresStore(connectionString: string): RegistrationStore
         if (existing && existing.status !== "cancelled") {
           return { kind: "duplicate", registration: toRegistration(existing) };
         }
-        // Signed up, cancelled, then came anyway: keep what they told us then.
+        // Signed up, cancelled, then came anyway: keep what they told us then,
+        // plus the postal code if they signed up before it was asked.
         if (existing) {
           const [row] = await tx<Row[]>`
             update registrations
-            set status = 'confirmed', checked_in_at = now(), queued_at = null
+            set status = 'confirmed', checked_in_at = now(), queued_at = null,
+              postal_code = coalesce(postal_code, ${input.postalCode})
             where code = ${existing.code}
             returning *
           `;
@@ -604,6 +611,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
               phone: input.phone,
               dietary: input.dietary,
               school: input.school,
+              postal_code: input.postalCode,
               age: input.age,
               marketing_opt_in: input.marketingOptIn,
               status: "confirmed",

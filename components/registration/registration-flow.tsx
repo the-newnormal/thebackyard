@@ -37,6 +37,11 @@ import {
 } from "@/lib/registrations/birthdate";
 import { EMAIL_PATTERN } from "@/lib/registrations/email";
 import {
+  isPostalCode,
+  normalizePostalCode,
+  POSTAL_CODE_ERROR,
+} from "@/lib/registrations/postal-code";
+import {
   composePhone,
   isSingaporeNumber,
   normalizePhone,
@@ -57,7 +62,8 @@ import {
 import { progressKey } from "./progress";
 
 // One question per screen, in the order of the Registration Questions sheet:
-// about you, what you do (and school, for students), food, contact, PDPA.
+// about you (and where you live), what you do (and school, for students),
+// food, contact, PDPA.
 
 type StepKey =
   | "name"
@@ -65,6 +71,7 @@ type StepKey =
   | "sex"
   | "race"
   | "birthdate"
+  | "postalCode"
   | "occupation"
   | "school"
   | "dietary"
@@ -80,6 +87,7 @@ type Values = {
   race: string;
   /** As typed, DD/MM/YYYY. */
   birthdate: string;
+  postalCode: string;
   occupation: string;
   school: string;
   /** The school's name, when it's "Others". */
@@ -100,6 +108,7 @@ const EMPTY: Values = {
   sex: "",
   race: "",
   birthdate: "",
+  postalCode: "",
   occupation: "",
   school: "",
   schoolOther: "",
@@ -132,6 +141,7 @@ const KICKERS: Record<StepKey, string> = {
   sex: "About you",
   race: "About you",
   birthdate: "About you",
+  postalCode: "About you",
   occupation: "What you do",
   school: "What you do",
   dietary: "Food",
@@ -148,6 +158,7 @@ const FIELD_STEP: Record<string, StepKey> = {
   sex: "sex",
   race: "race",
   birthdate: "birthdate",
+  postalCode: "postalCode",
   occupation: "occupation",
   school: "school",
   schoolOther: "school",
@@ -173,6 +184,7 @@ function stepsFor(values: Values, verifyPhone: boolean): StepKey[] {
     "sex",
     "race",
     "birthdate",
+    "postalCode",
     "occupation",
     ...(schoolsFor(values.occupation) ? (["school"] as const) : []),
     "dietary",
@@ -219,6 +231,8 @@ function asideFor(step: StepKey, values: Values, verifyPhone: boolean): string |
   switch (step) {
     case "birthdate":
       return "we won’t tell anyone your age";
+    case "postalCode":
+      return "just the 6 digits, so we know which neighbourhoods come by";
     case "occupation":
       return "pick the closest one";
     case "school":
@@ -248,6 +262,8 @@ function validate(step: StepKey, values: Values): string | null {
       if (!iso) return "That date doesn’t look right. Use DD/MM/YYYY";
       return birthdateProblem(iso, dateIn(series.timeZone));
     }
+    case "postalCode":
+      return isPostalCode(normalizePostalCode(values.postalCode)) ? null : POSTAL_CODE_ERROR;
     case "dietary":
       if (!values.dietary) return "Pick one";
       return values.dietaryNotes.trim().length > 300 ? "Keep it under 300 characters" : null;
@@ -554,6 +570,11 @@ export function RegistrationFlow({
     if (needsCode(saved.values, verifyPhone) && list.indexOf(to) > list.indexOf("phone")) {
       to = "phone";
     }
+    // Saved before a question was added (the postal code): ask it first.
+    const unanswered = list
+      .slice(0, list.indexOf(to))
+      .find((s) => s !== "code" && validate(s, saved.values));
+    if (unanswered) to = unanswered;
     setValues(saved.values);
     setResumeSettled(true);
     setStarted(true);
@@ -759,6 +780,30 @@ export function RegistrationFlow({
               labelledBy={headingId}
               invalid={Boolean(error)}
               describedBy={describedBy}
+            />
+            <ErrorText id={errorId}>{error}</ErrorText>
+            <Nav onBack={back} />
+          </form>
+        );
+
+      case "postalCode":
+        return (
+          <form onSubmit={submitStep} noValidate>
+            <Question id={headingId} kicker={KICKERS[step]} aside={aside}>
+              what’s your postal code?
+            </Question>
+            {banner}
+            <input
+              {...field}
+              autoFocus
+              inputMode="numeric"
+              autoComplete="postal-code"
+              enterKeyHint="next"
+              maxLength={7}
+              value={values.postalCode}
+              onChange={(e) => update({ postalCode: e.target.value })}
+              placeholder="e.g. 238801"
+              className="field h-16 px-5 text-2xl tabular-nums"
             />
             <ErrorText id={errorId}>{error}</ErrorText>
             <Nav onBack={back} />
@@ -1273,6 +1318,7 @@ function Answers({
     sex: values.sex,
     race: values.race,
     birthdate: parseBirthdate(values.birthdate) ?? values.birthdate,
+    postalCode: values.postalCode,
     occupation: values.occupation,
     school: schoolsFor(values.occupation) ? values.school : "",
     schoolOther:

@@ -11,7 +11,7 @@ export type TermsBlock = string | TermsItem[];
 
 export type TermsSection = { heading: string; blocks: TermsBlock[] };
 
-const updated = "18 October 2026";
+const updated = "10 November 2026";
 const dated = `Effective date: 18 October 2026 · Last updated: ${updated}`;
 
 export const terms = {
@@ -180,7 +180,7 @@ export const terms = {
           heading: "Personal data",
           blocks: [
             "**1.** “Personal data” means data, whether true or not, about an individual (whether a prospective participant, participant, volunteer, community member, authorised representative or otherwise) who can be identified: (a) from that data; or (b) from that data and other information to which we have or are likely to have access.",
-            "**2.** Depending on how you interact with us, personal data we may collect includes your name; contact details such as email address or phone number; age or date of birth; school, organisation or community affiliation; your responses to our sign-up and co-creation forms (such as interests, skills and availability); emergency contact details; dietary or accessibility requirements you choose to disclose; social media handles; and photographs, video footage, audio recordings and other audio-visual information in which you may appear or be heard.",
+            "**2.** Depending on how you interact with us, personal data we may collect includes your name; contact details such as email address or phone number; residential postal code; age or date of birth; school, organisation or community affiliation; your responses to our sign-up and co-creation forms (such as interests, skills and availability); emergency contact details; dietary or accessibility requirements you choose to disclose; social media handles; and photographs, video footage, audio recordings and other audio-visual information in which you may appear or be heard.",
             "**3.** Other terms used in this Notice have the meanings given to them in the PDPA (where the context permits).",
           ],
         },

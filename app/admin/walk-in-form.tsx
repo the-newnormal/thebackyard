@@ -56,6 +56,19 @@ export function WalkInForm({ slug }: { slug: string }) {
           </datalist>
         </label>
         <label className="block">
+          <span className="mb-1 block text-sm font-bold text-forest">Postal code</span>
+          <input
+            name="postalCode"
+            inputMode="numeric"
+            required
+            pattern="\s*\d{3}\s*\d{3}\s*"
+            maxLength={7}
+            autoComplete="off"
+            className="field"
+            defaultValue={v?.postalCode}
+          />
+        </label>
+        <label className="block">
           <span className="mb-1 block text-sm font-bold text-forest">
             Email <span className="font-normal text-muted">optional</span>
           </span>
