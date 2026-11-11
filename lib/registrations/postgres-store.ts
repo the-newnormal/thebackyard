@@ -459,9 +459,12 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           return { kind: "closed" };
         }
 
+        // Locked, so an offer saved on the old pass meanwhile (setHelp doesn't
+        // take the event lock) is waited for and carried over, not lost.
         const [existing] = await tx<Row[]>`
           select * from registrations
           where event_slug = ${input.eventSlug} and lower(email) = lower(${input.email})
+          for update
         `;
         if (existing && existing.status !== "cancelled") {
           return { kind: "duplicate", registration: toRegistration(existing) };
