@@ -42,6 +42,9 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
   // app's reach. Sharing must start in the tap itself, so the file is
   // fetched ahead.
   const qrFile = useRef<File | null>(null);
+  // A share sheet is open. Another tap meanwhile would be refused
+  // (InvalidStateError), which isn't sharing failing.
+  const sharing = useRef(false);
   useEffect(() => {
     if (!window.matchMedia("(pointer: coarse)").matches || !navigator.canShare) return;
     let live = true;
@@ -100,11 +103,19 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
                 const file = qrFile.current;
                 if (!file) return;
                 e.preventDefault();
-                navigator.share({ files: [file] }).catch((err: unknown) => {
-                  if (err instanceof DOMException && err.name === "AbortError") return;
-                  qrFile.current = null;
-                  setShareFailed(true);
-                });
+                if (sharing.current) return;
+                sharing.current = true;
+                navigator
+                  .share({ files: [file] })
+                  .catch((err: unknown) => {
+                    const name = err instanceof DOMException ? err.name : "";
+                    if (name === "AbortError" || name === "InvalidStateError") return;
+                    qrFile.current = null;
+                    setShareFailed(true);
+                  })
+                  .finally(() => {
+                    sharing.current = false;
+                  });
               }}
               className="btn btn-outline px-4 py-2 text-sm"
             >
@@ -186,9 +197,13 @@ export function Support({
   const status = useRef<HTMLParagraphElement>(null);
   const firstBox = useRef<HTMLInputElement>(null);
   const changeButton = useRef<HTMLButtonElement>(null);
-  const focusNext = useRef<"status" | "first" | "change" | null>(null);
+  const focusNext = useRef<"status" | "first" | "change" | "submitter" | null>(null);
+  // What had focus when the form was sent; it's disabled while saving, so
+  // an error reply puts focus back on it.
+  const submitter = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (state.saved) focusNext.current = "status";
+    else if (state.error) focusNext.current = "submitter";
   }, [state]);
   useEffect(() => {
     const target = focusNext.current;
@@ -196,6 +211,7 @@ export function Support({
     if (target === "status") status.current?.focus();
     if (target === "first") firstBox.current?.focus();
     if (target === "change") changeButton.current?.focus();
+    if (target === "submitter" && submitter.current?.isConnected) submitter.current.focus();
   });
 
   const showForm = editing || !saved.helpWith;
@@ -261,6 +277,8 @@ export function Support({
                 return;
               }
               clearErrors();
+              submitter.current =
+                document.activeElement instanceof HTMLElement ? document.activeElement : null;
               const answers = new FormData(e.currentTarget);
               startTransition(() => dispatch(answers));
             }}
