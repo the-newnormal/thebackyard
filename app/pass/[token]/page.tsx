@@ -7,6 +7,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { ClearRegistrationProgress } from "@/components/registration/progress";
 import { Splat, Starburst } from "@/components/shapes";
 import { SiteHeader } from "@/components/site-header";
+import { Support } from "@/components/support";
 import { series } from "@/content/series";
 import { googleCalendarUrl } from "@/lib/calendar";
 import {
@@ -104,6 +105,13 @@ async function Pass({
         next={next}
         upcoming={upcoming}
       />
+      {/* For anyone with a spot or a place in line, before and after the date. */}
+      {registration.status !== "cancelled" && state !== "cancelled" && (
+        <Support
+          passToken={registration.passToken}
+          offer={{ helpWith: registration.helpWith, helpNote: registration.helpNote }}
+        />
+      )}
     </div>
   );
 }

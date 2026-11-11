@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
+import { support } from "@/content/copy";
 import {
   MAIN_RACES,
   OCCUPATIONS,
@@ -133,6 +134,12 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
     const years = ageOnDay(r, day);
     return years === null ? null : ageGroup(years);
   };
+  // Offers made from the pass. Cancelling a spot isn't taking the offer back.
+  const helpers = registrations.filter((r) => r.helpWith);
+  const helpRows = support.help.options.map((label) => ({
+    label,
+    value: helpers.filter((r) => r.helpWith!.includes(label)).length,
+  }));
   const bySchool = new Map<string, number>();
   for (const r of active) if (r.school) bySchool.set(r.school, (bySchool.get(r.school) ?? 0) + 1);
   const schools = [...bySchool]
@@ -248,6 +255,13 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/admin">, "searchPara
         />
         {schools.length > 0 && (
           <Breakdown title="Top schools" rows={schools} footnote="Students, and walk-ins (asked everyone)." />
+        )}
+        {helpers.length > 0 && (
+          <Breakdown
+            title="Offers to help"
+            rows={helpRows}
+            footnote={`${helpers.length} ${helpers.length === 1 ? "person" : "people"}, incl. cancelled. “Can help” in the list shows who.`}
+          />
         )}
       </div>
 

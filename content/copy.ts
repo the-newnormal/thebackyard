@@ -69,6 +69,34 @@ export const signUpConsent = {
   button: "Agree to proceed",
 };
 
+// Under the pass once someone has a spot or is on the waitlist: chipping in
+// with money, or with a hand on the night. Offers are saved with their sign-up
+// and show on the dashboard; the Terms cover them (Part B clauses 2 and 5).
+export const support = {
+  kicker: "Chip in",
+  title: "keep the backyard going",
+  body: "If you would like to contribute a little something to help these Backyard BBQs continue to happen, we will be grateful for any amount of support!",
+  give: {
+    heading: "Financially",
+    body: "To do so financially, you can do so here:",
+    button: "Give any amount",
+    // Where the button goes, e.g. a PayNow or donation page. While it's empty,
+    // the financial part is hidden.
+    url: "",
+  },
+  help: {
+    heading: "Physically",
+    body: "To do so physically, tick what you’d like to help with:",
+    // Saved as written, so rename with care: earlier offers keep the old name.
+    // The last one asks what else they have in mind.
+    options: ["Hosting", "Cooking", "Welcoming", "Planning new experiences", "Others"],
+    other: "What else?",
+    button: "Count me in",
+    thanks: "Thank you! We’ll be in touch about",
+    change: "Change",
+  },
+} as const;
+
 export const faqs = [
   {
     q: "Is it really free?",

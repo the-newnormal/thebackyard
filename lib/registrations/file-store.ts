@@ -67,6 +67,8 @@ const LATER_FIELDS = {
   queuedAt: null,
   walkIn: false,
   age: null,
+  helpWith: null,
+  helpNote: null,
 } satisfies Partial<Registration>;
 
 const load = async () =>
@@ -200,6 +202,8 @@ export function createFileStore(): RegistrationStore {
           queuedAt: null,
           walkIn: false,
           age: null,
+          helpWith: null,
+          helpNote: null,
         };
         // Coming back after cancelling: start over with a new code and pass link.
         const next = rows.filter((r) => r !== existing);
@@ -329,6 +333,12 @@ export function createFileStore(): RegistrationStore {
     cancel: (code) => withdraw((r) => r.code === code, false),
 
     releaseByPassToken: (token) => withdraw((r) => r.passToken === token, false),
+
+    setHelp: (token, helpWith, helpNote) =>
+      updateWhere(
+        (r) => r.passToken === token,
+        (r) => ({ ...r, helpWith, helpNote }),
+      ),
 
     remove: (code) => withdraw((r) => r.code === code, true),
 

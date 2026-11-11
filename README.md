@@ -18,7 +18,10 @@ with its own date, venue, capacity, poster and guest list.
   from the consent on the last sign-up step
 - **`/pass/<token>`**: each guest's pass for their own date, with their check-in
   code, calendar links and a "release my spot" button. The link carries an
-  unguessable token; the short check-in code is only for the check-in table
+  unguessable token; the short check-in code is only for the check-in table.
+  Under it, "Chip in" asks for support: a link to give money, and tick boxes
+  to offer a hand (hosting, cooking, welcoming, planning new experiences,
+  others), which they can change later from the same link
 - **`/admin`**: organiser dashboard with headcount, dietary breakdown, search,
   check-in, waitlist and CSV export, per date (`?edition=<slug>`)
 - **`/admin/editions`**: plan, publish, edit, call off and add posters to dates
@@ -64,6 +67,7 @@ or redeploys:
 | Name, tagline, organiser, co-organiser, contact | `content/series.ts` |
 | Answer options: residency, race, occupations, schools | `content/registration-options.ts` |
 | "Why Backyard", "Why BBQs", "Our model", FAQ, brand line, sign-up consent | `content/copy.ts` |
+| "Chip in" on the pass: wording, donation link (`support.give.url`), ways to help | `content/copy.ts` |
 | Terms and Conditions (`/terms`) | `content/terms.ts` |
 | Brand colours and fonts | `app/globals.css` (`@theme`) and `app/layout.tsx` |
 | Link preview image | `app/opengraph-image.jpg` (1200×630) |
@@ -110,6 +114,11 @@ and `marketing_opt_outs` tables are created automatically on first use.
   as `postal_code`. The CSV exports it as `S018956`, so spreadsheets keep the
   leading 0. Sign-ups from before it was asked have none; a sign-up or walk-in
   form opened before then is asked to reload.
+- Offers to help from the pass are saved with the sign-up (`help_with`,
+  `help_note`), shown as "Can help" in the guest list (with its own filter),
+  counted under "Offers to help" on the dashboard, and in the CSV. Releasing a
+  spot keeps the offer. The financial part only shows once `support.give.url`
+  in `content/copy.ts` is set.
 - One registration per email per date. Re-submitting with the same email and
   phone shows the existing pass; a different phone gets an error, so nobody can
   pull up someone else's pass with just their email.
