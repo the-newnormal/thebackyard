@@ -84,6 +84,9 @@ export const support = {
     onPhone: "On your phone? Save the QR code to your photos and open it from your banking app’s scanner, or PayNow to",
     reference: "with the reference",
     save: "Save QR code",
+    // After a phone couldn't share the QR to Photos.
+    download: "Download QR code",
+    shareFailed: "Couldn’t open sharing. Tap Download QR code to save it instead.",
     copy: "Copy",
     copied: "Copied",
     copyFailed: "Couldn’t copy",

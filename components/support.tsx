@@ -33,6 +33,9 @@ function describe({ helpWith, helpNote }: Offer): string {
  */
 function PayNow({ recipient, reference, qr }: PayNowDetails) {
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  // Sharing failed (not cancelled): the button downloads instead. It waits
+  // for a fresh tap, as the failed share may have used this one up.
+  const [shareFailed, setShareFailed] = useState(false);
   const copyTimer = useRef<number | undefined>(undefined);
   // On phones, "Save" opens the share sheet, whose "Save Image" puts the QR in
   // Photos; a download would land in Files on iPhones, out of the banking
@@ -97,17 +100,15 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
                 const file = qrFile.current;
                 if (!file) return;
                 e.preventDefault();
-                const link = e.currentTarget;
                 navigator.share({ files: [file] }).catch((err: unknown) => {
                   if (err instanceof DOMException && err.name === "AbortError") return;
-                  // Sharing failed here: download it instead, now and next time.
                   qrFile.current = null;
-                  link.click();
+                  setShareFailed(true);
                 });
               }}
               className="btn btn-outline px-4 py-2 text-sm"
             >
-              {support.give.save}
+              {shareFailed ? support.give.download : support.give.save}
             </a>
             <button
               type="button"
@@ -130,6 +131,9 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
           </div>
           <p aria-live="polite" className="sr-only">
             {copy === "copied" ? `${recipient} copied` : copy === "failed" ? support.give.copyFailed : ""}
+          </p>
+          <p aria-live="polite" className="mt-2 text-sm text-muted empty:hidden">
+            {shareFailed ? support.give.shareFailed : ""}
           </p>
         </div>
       </div>
