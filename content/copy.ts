@@ -1,5 +1,6 @@
 // Site copy, adapted from the Backyard brand guide. Edit freely.
 
+import type { PayNowTarget } from "@/lib/paynow";
 import { series } from "./series";
 
 export const brand = {
@@ -79,10 +80,16 @@ export const support = {
   give: {
     heading: "Financially",
     body: "To do so financially, you can do so here:",
-    button: "Give any amount",
-    // Where the button goes, e.g. a PayNow or donation page. While it's empty,
-    // the financial part is hidden.
-    url: "",
+    // The PayNow QR at /paynow-qr.png is made from this: a `mobile` number, or
+    // a `uen` for a business. The reference is filled in when someone scans.
+    // Set it to null to hide the financial part.
+    paynow: { mobile: "86909862", reference: "BACKYARD" } as PayNowTarget | null,
+    scan: "Scan with your banking app and PayNow any amount.",
+    onPhone: "On your phone? Save the QR code and open it from your banking app’s scanner, or PayNow to",
+    reference: "with the reference",
+    save: "Save QR code",
+    copy: "Copy",
+    copied: "Copied",
   },
   help: {
     heading: "Physically",

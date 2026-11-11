@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { offerHelp, type HelpState } from "@/app/pass/actions";
 import { support } from "@/content/copy";
+import { payNowRecipient, type PayNowTarget } from "@/lib/paynow";
 
 type Offer = { helpWith: string[] | null; helpNote: string | null };
 
@@ -17,8 +18,70 @@ function describe({ helpWith, helpNote }: Offer): string {
 }
 
 /**
- * "Chip in", under the pass: a link to give money (when one is set) and an
- * offer to help on the night, saved with this sign-up.
+ * The PayNow QR, for scanning off another screen. Most passes are opened on a
+ * phone, which can't scan itself, so it can also be saved (bank apps scan
+ * from the photo library) or paid by typing the number in.
+ */
+function PayNow({ target }: { target: PayNowTarget }) {
+  const recipient = payNowRecipient(target);
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="mt-6">
+      <h3 className="font-bold text-forest">{support.give.heading}</h3>
+      <p className="mt-1 text-muted">{support.give.body}</p>
+      <div className="mt-3 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a generated PNG, already the size it's shown at; long-press saves it on phones */}
+        <img
+          src="/paynow-qr.png"
+          width={176}
+          height={176}
+          alt={`PayNow QR code for ${recipient}`}
+          className="size-44 shrink-0 rounded-xl border-2 border-forest/15 bg-white"
+        />
+        <div className="text-sm text-ink">
+          <p>{support.give.scan}</p>
+          <p className="mt-2 text-muted">
+            {support.give.onPhone}{" "}
+            <span className="font-semibold whitespace-nowrap text-ink tabular-nums">{recipient}</span>
+            {target.reference && (
+              <>
+                {" "}
+                {support.give.reference}{" "}
+                <span className="font-semibold text-ink">{target.reference}</span>
+              </>
+            )}
+            .
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href="/paynow-qr.png"
+              download="backyard-paynow-qr.png"
+              className="btn btn-outline px-4 py-2 text-sm"
+            >
+              {support.give.save}
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(recipient.replace(/\s/g, "")).then(
+                  () => setCopied(true),
+                  () => setCopied(false),
+                );
+              }}
+              className="btn btn-outline px-4 py-2 text-sm"
+            >
+              {copied ? support.give.copied : `${support.give.copy} ${recipient}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Chip in", under the pass: PayNow (when a number is set) and an offer to
+ * help on the night, saved with this sign-up.
  */
 export function Support({ passToken, offer }: { passToken: string; offer: Offer }) {
   const [state, action, pending] = useActionState<HelpState, FormData>(
@@ -53,20 +116,7 @@ export function Support({ passToken, offer }: { passToken: string; offer: Offer 
       </h2>
       <p className="mt-3 text-ink">{support.body}</p>
 
-      {support.give.url && (
-        <div className="mt-6">
-          <h3 className="font-bold text-forest">{support.give.heading}</h3>
-          <p className="mt-1 text-muted">{support.give.body}</p>
-          <a
-            href={support.give.url}
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-primary mt-3 px-5 py-3 text-sm"
-          >
-            {support.give.button} <span aria-hidden="true">→</span>
-          </a>
-        </div>
-      )}
+      {support.give.paynow && <PayNow target={support.give.paynow} />}
 
       <div className="mt-6">
         <h3 className="font-bold text-forest">{support.help.heading}</h3>
