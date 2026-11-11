@@ -76,7 +76,7 @@ export const signUpConsent = {
 export const support = {
   kicker: "Chip in",
   title: "keep the backyard going",
-  body: "If you would like to contribute a little something to help these Backyard BBQs continue to happen, we will be grateful for any amount of support!",
+  body: "Backyard is run completely not-for-profit — if you would like to contribute a little something to help these Backyard BBQs continue to happen, we will be grateful for any amount of support!",
   give: {
     heading: "Financially",
     body: "To do so financially, you can do so here:",
