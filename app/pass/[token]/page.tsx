@@ -7,6 +7,8 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { ClearRegistrationProgress } from "@/components/registration/progress";
 import { Splat, Starburst } from "@/components/shapes";
 import { SiteHeader } from "@/components/site-header";
+import { Support } from "@/components/support";
+import { payNow } from "@/content/paynow";
 import { series } from "@/content/series";
 import { googleCalendarUrl } from "@/lib/calendar";
 import {
@@ -25,6 +27,7 @@ import {
   formatMoment,
   venueMapsUrl,
 } from "@/lib/format";
+import { payNowRecipient } from "@/lib/paynow";
 import { getStore, partySize, type Registration } from "@/lib/registrations";
 import { isValidPassToken } from "@/lib/registrations/code";
 import { siteUrl } from "@/lib/site";
@@ -103,6 +106,19 @@ async function Pass({
         state={state}
         next={next}
         upcoming={upcoming}
+      />
+      {/* On every pass, released or called off too: an offer outlives both,
+          so its holder can still see and change it. */}
+      <Support
+        passToken={registration.passToken}
+        offer={{ helpWith: registration.helpWith, helpNote: registration.helpNote }}
+        payNow={
+          payNow && {
+            recipient: payNowRecipient(payNow),
+            reference: payNow.reference ?? null,
+            qr: `/pass/${registration.passToken}/paynow-qr.png`,
+          }
+        }
       />
     </div>
   );

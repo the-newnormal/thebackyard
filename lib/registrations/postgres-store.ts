@@ -44,6 +44,8 @@ type Row = {
   queued_at: Date | null;
   walk_in: boolean;
   age: number | null;
+  help_with: string[] | null;
+  help_note: string | null;
 };
 
 const toRegistration = (row: Row): Registration => ({
@@ -73,6 +75,8 @@ const toRegistration = (row: Row): Registration => ({
   queuedAt: row.queued_at?.toISOString() ?? null,
   walkIn: row.walk_in,
   age: row.age,
+  helpWith: row.help_with,
+  helpNote: row.help_note,
 });
 
 type EditionRow = {
@@ -222,7 +226,7 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           where attrelid = to_regclass('editions') and attname = 'called_off_note' and not attisdropped
         ) and exists (
           select 1 from pg_attribute
-          where attrelid = to_regclass('registrations') and attname = 'postal_code' and not attisdropped
+          where attrelid = to_regclass('registrations') and attname = 'help_note' and not attisdropped
         ) and to_regclass('registrations_event_email_given') is not null as latest
     `;
     return Boolean(existing?.rls && existing.posters && existing.opt_outs && existing.latest);
@@ -275,7 +279,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           created_at timestamptz not null default now(),
           queued_at timestamptz,
           walk_in boolean not null default false,
-          age integer
+          age integer,
+          help_with text[],
+          help_note text
         )
       `;
       // Columns added since launch, for tables created before them.
@@ -291,7 +297,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           add column if not exists queued_at timestamptz,
           add column if not exists walk_in boolean not null default false,
           add column if not exists age integer,
-          add column if not exists postal_code text
+          add column if not exists postal_code text,
+          add column if not exists help_with text[],
+          add column if not exists help_note text
       `;
       // One sign-up per email per date. Walk-ins needn't give an email, so
       // blank ones don't count (this replaced an index that counted them).
@@ -451,9 +459,12 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           return { kind: "closed" };
         }
 
+        // Locked, so an offer saved on the old pass meanwhile (setHelp doesn't
+        // take the event lock) is waited for and carried over, not lost.
         const [existing] = await tx<Row[]>`
           select * from registrations
           where event_slug = ${input.eventSlug} and lower(email) = lower(${input.email})
+          for update
         `;
         if (existing && existing.status !== "cancelled") {
           return { kind: "duplicate", registration: toRegistration(existing) };
@@ -489,6 +500,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           occupation: input.occupation,
           school: input.school,
           postal_code: input.postalCode,
+          // An offer to help outlives releasing a spot, so it comes back too.
+          help_with: existing?.help_with ? tx.array(existing.help_with) : null,
+          help_note: existing?.help_note ?? null,
           guests: input.guests,
           dietary: input.dietary,
           dietary_notes: input.dietaryNotes,
@@ -690,6 +704,17 @@ export function createPostgresStore(connectionString: string): RegistrationStore
     async remove(code) {
       await ready();
       return withdraw(code, true);
+    },
+
+    async setHelp(token, helpWith, helpNote) {
+      await ready();
+      const [row] = await sql<Row[]>`
+        update registrations
+        set help_with = ${helpWith && sql.array(helpWith)}, help_note = ${helpNote}
+        where pass_token = ${token}
+        returning *
+      `;
+      return row ? toRegistration(row) : null;
     },
 
     async listOptOuts() {

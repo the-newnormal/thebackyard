@@ -72,11 +72,27 @@ export interface Registration {
   walkIn: boolean;
   /** Walk-ins give their age instead of a birthdate; null for sign-ups. */
   age: number | null;
+  /**
+   * What they offered to help with from their pass (support.help.options in
+   * content/copy.ts); null if they haven't.
+   */
+  helpWith: string[] | null;
+  /** What else, when they ticked the last option ("Others"). */
+  helpNote: string | null;
 }
 
 export type NewRegistration = Omit<
   Registration,
-  "code" | "passToken" | "status" | "checkedInAt" | "createdAt" | "queuedAt" | "walkIn" | "age"
+  | "code"
+  | "passToken"
+  | "status"
+  | "checkedInAt"
+  | "createdAt"
+  | "queuedAt"
+  | "walkIn"
+  | "age"
+  | "helpWith"
+  | "helpNote"
 >;
 
 /**
@@ -174,6 +190,11 @@ export interface RegistrationStore {
   releaseByPassToken(token: string): Promise<Withdrawal | null>;
   /** Deletes a registration for good, then fills from the waitlist. */
   remove(code: string): Promise<Withdrawal | null>;
+  /**
+   * Records what the holder of this pass offered to help with, replacing any
+   * earlier offer; null withdraws it. Null if there's no such pass.
+   */
+  setHelp(token: string, helpWith: string[] | null, helpNote: string | null): Promise<Registration | null>;
 
   /** Everyone who asked for no more updates, newest first. */
   listOptOuts(): Promise<OptOut[]>;

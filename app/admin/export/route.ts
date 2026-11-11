@@ -31,6 +31,8 @@ const columns = (day: string, optedOut: ReadonlySet<string>): Column[] => [
   ["dietary_notes", (r) => r.dietaryNotes],
   ["heard_from", (r) => r.heardFrom],
   ["wants_updates", (r) => wantsUpdates(r, optedOut)],
+  ["help_with", (r) => r.helpWith?.join("; ") ?? null],
+  ["help_note", (r) => r.helpNote],
   ["checked_in_at", (r) => r.checkedInAt],
   ["registered_at", (r) => r.createdAt],
 ];

@@ -25,6 +25,8 @@ const FILTERS = [
   { key: "waitlist", label: "Waitlist" },
   { key: "checked-in", label: "Checked in" },
   { key: "cancelled", label: "Cancelled" },
+  // Offers made from the pass, cancelled sign-ups included: they may still help.
+  { key: "can-help", label: "Can help" },
 ] as const;
 type Filter = (typeof FILTERS)[number]["key"];
 
@@ -37,6 +39,8 @@ function matches(r: Registration, filter: Filter): boolean {
       return r.status !== "cancelled";
     case "checked-in":
       return Boolean(r.checkedInAt) && r.status !== "cancelled";
+    case "can-help":
+      return r.helpWith !== null;
     default:
       return r.status === filter;
   }
@@ -235,6 +239,12 @@ function Row({
           {r.dietaryNotes && <span className="text-red"> · “{r.dietaryNotes}”</span>}
           {r.heardFrom && <span className="text-muted"> · via {heardLabel[r.heardFrom]}</span>}
         </p>
+        {r.helpWith && (
+          <p className="mt-1 text-sm [overflow-wrap:anywhere]">
+            <span className="font-semibold text-forest">Can help:</span> {r.helpWith.join(", ")}
+            {r.helpNote && <span className="text-muted"> · “{r.helpNote}”</span>}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 md:justify-end">

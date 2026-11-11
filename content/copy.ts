@@ -69,6 +69,43 @@ export const signUpConsent = {
   button: "Agree to proceed",
 };
 
+// Under every pass: chipping in with money (PayNow, from content/paynow.ts),
+// or with a hand on the night. Offers are saved with their sign-up and show on
+// the dashboard; the Terms cover them (Part B clauses 2 and 5).
+export const support = {
+  kicker: "Chip in",
+  title: "keep the backyard going",
+  body: "Backyard is run completely not-for-profit — if you would like to contribute a little something to help these Backyard BBQs continue to happen, we will be grateful for any amount of support!",
+  give: {
+    heading: "Financially",
+    body: "To do so financially, you can do so here:",
+    // The QR and number come from content/paynow.ts.
+    scan: "Scan with your banking app and PayNow any amount.",
+    onPhone: "On your phone? Save the QR code to your photos and open it from your banking app’s scanner, or PayNow to",
+    reference: "with the reference",
+    save: "Save QR code",
+    // After a phone couldn't share the QR to Photos.
+    download: "Download QR code",
+    shareFailed: "Couldn’t open sharing. Tap Download QR code to save it instead.",
+    copy: "Copy",
+    copied: "Copied",
+    copyFailed: "Couldn’t copy",
+  },
+  help: {
+    heading: "Physically",
+    body: "To do so physically, tick what you’d like to help with:",
+    // Saved as written, so rename with care: earlier offers keep the old name.
+    // The last one asks what else they have in mind.
+    options: ["Hosting", "Cooking", "Welcoming", "Planning new experiences", "Others"],
+    other: "What else?",
+    button: "Count me in",
+    thanks: "Thank you! We’ll be in touch about",
+    change: "Change",
+    pickOne: "Tick at least one, or what else you have in mind.",
+    withdrawn: "No problem, we’ve taken back your offer.",
+  },
+} as const;
+
 export const faqs = [
   {
     q: "Is it really free?",

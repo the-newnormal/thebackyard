@@ -6,7 +6,7 @@ import {
   schoolsFor,
   SEXES,
 } from "@/content/registration-options";
-import { signUpConsent } from "@/content/copy";
+import { signUpConsent, support } from "@/content/copy";
 import { series } from "@/content/series";
 import { birthdateProblem, dateIn, isUnder18 } from "./birthdate";
 import { EMAIL_PATTERN } from "./email";
@@ -130,3 +130,23 @@ export const walkInSchema = z.object({
     ),
   dietary: z.enum(dietaryValues, "Pick one"),
 });
+
+const helpOptions: readonly string[] = support.help.options;
+const helpOther = support.help.options[support.help.options.length - 1];
+
+/**
+ * An offer to help from the pass: the options ticked, in the order offered,
+ * and what else when the last ("Others") is ticked. Nothing ticked withdraws it.
+ */
+export const helpSchema = z
+  .object({
+    helpWith: z.array(z.string()).refine((v) => v.every((o) => helpOptions.includes(o)), "Pick from the list"),
+    helpNote: optionalText(200),
+  })
+  .transform(({ helpWith, helpNote }) => {
+    const ticked = helpOptions.filter((o) => helpWith.includes(o));
+    return {
+      helpWith: ticked.length ? ticked : null,
+      helpNote: ticked.includes(helpOther) ? helpNote : null,
+    };
+  });
