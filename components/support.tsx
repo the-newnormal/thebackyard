@@ -61,9 +61,10 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
   // On iPhones, "Save" opens the share sheet (see savesToPhotosBySharing).
   // Sharing must start in the tap itself, so the file is fetched ahead.
   const qrFile = useRef<File | null>(null);
-  // A share sheet is open. Another tap meanwhile would be refused
-  // (InvalidStateError), which isn't sharing failing.
-  const sharing = useRef(false);
+  // When the share sheet now open was asked for (ms); 0 if none. Some iOS
+  // versions never settle the share (iOS 14 at all, 15 and early 16 after
+  // "Save Image"), so an open share has to be able to go stale.
+  const sharing = useRef(0);
   useEffect(() => {
     if (!savesToPhotosBySharing() || !navigator.canShare) return;
     let live = true;
@@ -122,19 +123,31 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
                 const file = qrFile.current;
                 if (!file) return;
                 e.preventDefault();
-                if (sharing.current) return;
-                sharing.current = true;
-                navigator
-                  .share({ files: [file] })
-                  .catch((err: unknown) => {
-                    const name = err instanceof DOMException ? err.name : "";
-                    if (name === "AbortError" || name === "InvalidStateError") return;
-                    qrFile.current = null;
-                    setShareFailed(true);
-                  })
-                  .finally(() => {
-                    sharing.current = false;
-                  });
+                // Sharing didn't work here: the next tap downloads instead.
+                const fallBack = () => {
+                  sharing.current = 0;
+                  qrFile.current = null;
+                  setShareFailed(true);
+                };
+                if (sharing.current) {
+                  // Within a second it's a double tap. Later, the sheet (which
+                  // covers the page) is gone, but its share never settled.
+                  if (Date.now() - sharing.current > 1000) fallBack();
+                  return;
+                }
+                sharing.current = Date.now();
+                navigator.share({ files: [file] }).then(
+                  () => {
+                    sharing.current = 0;
+                  },
+                  (err: unknown) => {
+                    sharing.current = 0;
+                    // Cancelled. (InvalidStateError, an earlier share still
+                    // counted as open, can only be one that never settled.)
+                    if (err instanceof DOMException && err.name === "AbortError") return;
+                    fallBack();
+                  },
+                );
               }}
               className="btn btn-outline px-4 py-2 text-sm"
             >
