@@ -132,7 +132,7 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
           <p aria-live="polite" className="sr-only">
             {copy === "copied" ? `${recipient} copied` : copy === "failed" ? support.give.copyFailed : ""}
           </p>
-          <p aria-live="polite" className="mt-2 text-sm text-muted empty:hidden">
+          <p aria-live="polite" className="mt-2 text-sm text-muted empty:mt-0">
             {shareFailed ? support.give.shareFailed : ""}
           </p>
         </div>
@@ -225,7 +225,7 @@ export function Support({
           ref={status}
           tabIndex={-1}
           aria-live="polite"
-          className="mt-1 text-ink outline-none [overflow-wrap:anywhere] empty:hidden"
+          className="mt-1 text-ink outline-none [overflow-wrap:anywhere] empty:mt-0"
         >
           {!showForm
             ? `${support.help.thanks} ${describe(saved)}.`
