@@ -202,8 +202,9 @@ export function createFileStore(): RegistrationStore {
           queuedAt: null,
           walkIn: false,
           age: null,
-          helpWith: null,
-          helpNote: null,
+          // An offer to help outlives releasing a spot, so it comes back too.
+          helpWith: existing?.helpWith ?? null,
+          helpNote: existing?.helpNote ?? null,
         };
         // Coming back after cancelling: start over with a new code and pass link.
         const next = rows.filter((r) => r !== existing);

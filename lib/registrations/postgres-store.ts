@@ -497,6 +497,9 @@ export function createPostgresStore(connectionString: string): RegistrationStore
           occupation: input.occupation,
           school: input.school,
           postal_code: input.postalCode,
+          // An offer to help outlives releasing a spot, so it comes back too.
+          help_with: existing?.help_with ? tx.array(existing.help_with) : null,
+          help_note: existing?.help_note ?? null,
           guests: input.guests,
           dietary: input.dietary,
           dietary_notes: input.dietaryNotes,

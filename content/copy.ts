@@ -1,6 +1,5 @@
 // Site copy, adapted from the Backyard brand guide. Edit freely.
 
-import type { PayNowTarget } from "@/lib/paynow";
 import { series } from "./series";
 
 export const brand = {
@@ -70,9 +69,9 @@ export const signUpConsent = {
   button: "Agree to proceed",
 };
 
-// Under the pass once someone has a spot or is on the waitlist: chipping in
-// with money, or with a hand on the night. Offers are saved with their sign-up
-// and show on the dashboard; the Terms cover them (Part B clauses 2 and 5).
+// Under every pass: chipping in with money (PayNow, from content/paynow.ts),
+// or with a hand on the night. Offers are saved with their sign-up and show on
+// the dashboard; the Terms cover them (Part B clauses 2 and 5).
 export const support = {
   kicker: "Chip in",
   title: "keep the backyard going",
@@ -80,16 +79,14 @@ export const support = {
   give: {
     heading: "Financially",
     body: "To do so financially, you can do so here:",
-    // The PayNow QR at /paynow-qr.png is made from this: a `mobile` number, or
-    // a `uen` for a business. The reference is filled in when someone scans.
-    // Set it to null to hide the financial part.
-    paynow: { mobile: "86909862", reference: "BACKYARD" } as PayNowTarget | null,
+    // The QR and number come from content/paynow.ts.
     scan: "Scan with your banking app and PayNow any amount.",
-    onPhone: "On your phone? Save the QR code and open it from your banking app’s scanner, or PayNow to",
+    onPhone: "On your phone? Save the QR code to your photos and open it from your banking app’s scanner, or PayNow to",
     reference: "with the reference",
     save: "Save QR code",
     copy: "Copy",
     copied: "Copied",
+    copyFailed: "Couldn’t copy",
   },
   help: {
     heading: "Physically",
@@ -101,6 +98,8 @@ export const support = {
     button: "Count me in",
     thanks: "Thank you! We’ll be in touch about",
     change: "Change",
+    pickOne: "Tick at least one, or what else you have in mind.",
+    withdrawn: "No problem, we’ve taken back your offer.",
   },
 } as const;
 

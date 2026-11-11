@@ -41,7 +41,13 @@ export async function offerHelp(
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { helpWith, helpNote } = parsed.data;
-  const saved = await getStore().setHelp(passToken, helpWith, helpNote);
+  let saved;
+  try {
+    saved = await getStore().setHelp(passToken, helpWith, helpNote);
+  } catch (error) {
+    console.error("Saving an offer to help failed", error);
+    return { error: "We couldn’t save that just now. Please try again in a moment." };
+  }
   if (!saved) return { error: "We couldn’t find this pass. Reload the page and try again." };
   refresh();
   return { saved: { helpWith: saved.helpWith, helpNote: saved.helpNote } };

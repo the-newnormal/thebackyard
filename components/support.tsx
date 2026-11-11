@@ -1,13 +1,22 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { offerHelp, type HelpState } from "@/app/pass/actions";
 import { support } from "@/content/copy";
-import { payNowRecipient, type PayNowTarget } from "@/lib/paynow";
 
 type Offer = { helpWith: string[] | null; helpNote: string | null };
 
+/** The PayNow details for this pass, from content/paynow.ts on the server. */
+export type PayNowDetails = {
+  /** "8690 9862", or a UEN. */
+  recipient: string;
+  reference: string | null;
+  /** This pass's QR image. */
+  qr: string;
+};
+
 const OTHER = support.help.options[support.help.options.length - 1];
+const QR_FILE = "backyard-paynow-qr.png";
 
 /** "cooking, welcoming and “a DJ set”": what they offered, for the thank-you. */
 function describe({ helpWith, helpNote }: Offer): string {
@@ -19,20 +28,49 @@ function describe({ helpWith, helpNote }: Offer): string {
 
 /**
  * The PayNow QR, for scanning off another screen. Most passes are opened on a
- * phone, which can't scan itself, so it can also be saved (bank apps scan
- * from the photo library) or paid by typing the number in.
+ * phone, which can't scan itself, so the QR can also be saved (banking apps
+ * scan from the photo library) or the number copied.
  */
-function PayNow({ target }: { target: PayNowTarget }) {
-  const recipient = payNowRecipient(target);
-  const [copied, setCopied] = useState(false);
+function PayNow({ recipient, reference, qr }: PayNowDetails) {
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const copyTimer = useRef<number | undefined>(undefined);
+  // On phones, "Save" opens the share sheet, whose "Save Image" puts the QR in
+  // Photos; a download would land in Files on iPhones, out of the banking
+  // app's reach. Sharing must start in the tap itself, so the file is
+  // fetched ahead.
+  const qrFile = useRef<File | null>(null);
+  useEffect(() => {
+    if (!window.matchMedia("(pointer: coarse)").matches || !navigator.canShare) return;
+    let live = true;
+    fetch(qr)
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((blob) => {
+        if (!live || !blob) return;
+        const file = new File([blob], QR_FILE, { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) qrFile.current = file;
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [qr]);
+  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
+
+  const copyLabel =
+    copy === "copied"
+      ? support.give.copied
+      : copy === "failed"
+        ? support.give.copyFailed
+        : `${support.give.copy} ${recipient}`;
+
   return (
     <div className="mt-6">
       <h3 className="font-bold text-forest">{support.give.heading}</h3>
       <p className="mt-1 text-muted">{support.give.body}</p>
       <div className="mt-3 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        {/* eslint-disable-next-line @next/next/no-img-element -- a generated PNG, already the size it's shown at; long-press saves it on phones */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- a generated PNG per pass; long-press saves it on phones */}
         <img
-          src="/paynow-qr.png"
+          src={qr}
           width={176}
           height={176}
           alt={`PayNow QR code for ${recipient}`}
@@ -43,19 +81,24 @@ function PayNow({ target }: { target: PayNowTarget }) {
           <p className="mt-2 text-muted">
             {support.give.onPhone}{" "}
             <span className="font-semibold whitespace-nowrap text-ink tabular-nums">{recipient}</span>
-            {target.reference && (
+            {reference && (
               <>
                 {" "}
-                {support.give.reference}{" "}
-                <span className="font-semibold text-ink">{target.reference}</span>
+                {support.give.reference} <span className="font-semibold text-ink">{reference}</span>
               </>
             )}
             .
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <a
-              href="/paynow-qr.png"
-              download="backyard-paynow-qr.png"
+              href={qr}
+              download={QR_FILE}
+              onClick={(e) => {
+                const file = qrFile.current;
+                if (!file) return;
+                e.preventDefault();
+                navigator.share({ files: [file] }).catch(() => {});
+              }}
               className="btn btn-outline px-4 py-2 text-sm"
             >
               {support.give.save}
@@ -63,16 +106,25 @@ function PayNow({ target }: { target: PayNowTarget }) {
             <button
               type="button"
               onClick={() => {
-                navigator.clipboard?.writeText(recipient.replace(/\s/g, "")).then(
-                  () => setCopied(true),
-                  () => setCopied(false),
+                const done = (result: "copied" | "failed") => {
+                  setCopy(result);
+                  window.clearTimeout(copyTimer.current);
+                  copyTimer.current = window.setTimeout(() => setCopy("idle"), 2500);
+                };
+                if (!navigator.clipboard) return done("failed");
+                navigator.clipboard.writeText(recipient.replace(/\s/g, "")).then(
+                  () => done("copied"),
+                  () => done("failed"),
                 );
               }}
               className="btn btn-outline px-4 py-2 text-sm"
             >
-              {copied ? support.give.copied : `${support.give.copy} ${recipient}`}
+              {copyLabel}
             </button>
           </div>
+          <p aria-live="polite" className="sr-only">
+            {copy === "copied" ? `${recipient} copied` : copy === "failed" ? support.give.copyFailed : ""}
+          </p>
         </div>
       </div>
     </div>
@@ -80,11 +132,19 @@ function PayNow({ target }: { target: PayNowTarget }) {
 }
 
 /**
- * "Chip in", under the pass: PayNow (when a number is set) and an offer to
- * help on the night, saved with this sign-up.
+ * "Chip in", under every pass: PayNow (when a number is set) and an offer to
+ * help on the night, saved with this sign-up and changeable later.
  */
-export function Support({ passToken, offer }: { passToken: string; offer: Offer }) {
-  const [state, action, pending] = useActionState<HelpState, FormData>(
+export function Support({
+  passToken,
+  offer,
+  payNow,
+}: {
+  passToken: string;
+  offer: Offer;
+  payNow: PayNowDetails | null;
+}) {
+  const [state, dispatch, pending] = useActionState<HelpState, FormData>(
     offerHelp.bind(null, passToken),
     {},
   );
@@ -93,15 +153,39 @@ export function Support({ passToken, offer }: { passToken: string; offer: Offer 
   const [editing, setEditing] = useState(false);
   const [ticked, setTicked] = useState<string[]>(saved.helpWith ?? []);
   const [note, setNote] = useState(saved.helpNote ?? "");
-  // A save closes the form; "Change" opens it on what's saved.
+  const [hint, setHint] = useState("");
+  // A save closes the form and shows what's saved now.
   const [shownFor, setShownFor] = useState(state);
   if (shownFor !== state) {
     setShownFor(state);
-    if (state.saved) setEditing(false);
+    if (state.saved) {
+      setEditing(false);
+      setTicked(state.saved.helpWith ?? []);
+      setNote(state.saved.helpNote ?? "");
+    }
   }
+
+  // Focus follows whatever replaced the control just used, so keyboard and
+  // screen-reader users aren't dropped at the top of the page.
+  const status = useRef<HTMLParagraphElement>(null);
+  const firstBox = useRef<HTMLInputElement>(null);
+  const changeButton = useRef<HTMLButtonElement>(null);
+  const focusNext = useRef<"status" | "first" | "change" | null>(null);
+  useEffect(() => {
+    if (state.saved) focusNext.current = "status";
+  }, [state]);
+  useEffect(() => {
+    const target = focusNext.current;
+    focusNext.current = null;
+    if (target === "status") status.current?.focus();
+    if (target === "first") firstBox.current?.focus();
+    if (target === "change") changeButton.current?.focus();
+  });
 
   const showForm = editing || !saved.helpWith;
   const withdrawing = ticked.length === 0 && Boolean(saved.helpWith);
+  const withdrawn = state.saved && !state.saved.helpWith;
+  const error = hint || state.error;
 
   return (
     <section
@@ -116,30 +200,75 @@ export function Support({ passToken, offer }: { passToken: string; offer: Offer 
       </h2>
       <p className="mt-3 text-ink">{support.body}</p>
 
-      {support.give.paynow && <PayNow target={support.give.paynow} />}
+      {payNow && <PayNow {...payNow} />}
 
       <div className="mt-6">
         <h3 className="font-bold text-forest">{support.help.heading}</h3>
-        {showForm ? (
-          <form action={action} className="mt-1">
+        {/* Always present, so what it says when a save lands is announced. */}
+        <p
+          ref={status}
+          tabIndex={-1}
+          aria-live="polite"
+          className="mt-1 text-ink outline-none [overflow-wrap:anywhere] empty:hidden"
+        >
+          {!showForm
+            ? `${support.help.thanks} ${describe(saved)}.`
+            : withdrawn && ticked.length === 0
+              ? support.help.withdrawn
+              : ""}
+        </p>
+        {!showForm && (
+          <button
+            ref={changeButton}
+            type="button"
+            onClick={() => {
+              setTicked(saved.helpWith ?? []);
+              setNote(saved.helpNote ?? "");
+              setHint("");
+              setEditing(true);
+              focusNext.current = "first";
+            }}
+            className="mt-1 text-sm font-semibold text-forest underline underline-offset-4"
+          >
+            {support.help.change}
+          </button>
+        )}
+        {showForm && (
+          // Submitted by hand rather than through `action`, which resets the
+          // form after a reply and would put the boxes back behind React.
+          <form
+            className="mt-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (ticked.length === 0 && !saved.helpWith) {
+                setHint(support.help.pickOne);
+                return;
+              }
+              setHint("");
+              const answers = new FormData(e.currentTarget);
+              startTransition(() => dispatch(answers));
+            }}
+          >
             <fieldset>
               <legend className="text-muted">{support.help.body}</legend>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {support.help.options.map((option) => (
+                {support.help.options.map((option, i) => (
                   <label
                     key={option}
                     className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-forest/15 px-4 py-3 font-semibold text-ink has-[:checked]:border-forest has-[:checked]:bg-lime/30"
                   >
                     <input
+                      ref={i === 0 ? firstBox : undefined}
                       type="checkbox"
                       name="helpWith"
                       value={option}
                       checked={ticked.includes(option)}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        setHint("");
                         setTicked((t) =>
                           e.target.checked ? [...t, option] : t.filter((o) => o !== option),
-                        )
-                      }
+                        );
+                      }}
                       className="size-5 shrink-0 accent-forest"
                     />
                     {option}
@@ -166,7 +295,7 @@ export function Support({ passToken, offer }: { passToken: string; offer: Offer 
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 type="submit"
-                disabled={pending || (ticked.length === 0 && !withdrawing)}
+                disabled={pending}
                 className="btn btn-primary px-5 py-3 text-sm"
               >
                 {pending ? "Saving…" : withdrawing ? "Take back my offer" : support.help.button}
@@ -177,35 +306,22 @@ export function Support({ passToken, offer }: { passToken: string; offer: Offer 
                   onClick={() => {
                     setTicked(saved.helpWith ?? []);
                     setNote(saved.helpNote ?? "");
+                    setHint("");
                     setEditing(false);
+                    focusNext.current = "change";
                   }}
                   className="text-sm font-semibold text-muted underline underline-offset-4 hover:text-forest"
                 >
                   Cancel
                 </button>
               )}
-              {state.error && (
-                <p role="alert" className="text-sm font-semibold text-red">
-                  {state.error}
+              {error && (
+                <p role="alert" className="text-sm font-semibold text-red-ink">
+                  {error}
                 </p>
               )}
             </div>
           </form>
-        ) : (
-          <p role="status" className="mt-1 text-ink">
-            {support.help.thanks} {describe(saved)}.{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setTicked(saved.helpWith ?? []);
-                setNote(saved.helpNote ?? "");
-                setEditing(true);
-              }}
-              className="font-semibold text-forest underline underline-offset-4"
-            >
-              {support.help.change}
-            </button>
-          </p>
         )}
       </div>
     </section>
