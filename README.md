@@ -20,10 +20,10 @@ with its own date, venue, capacity, poster and guest list.
   code, calendar links and a "release my spot" button. The link carries an
   unguessable token; the short check-in code is only for the check-in table.
   Under it, on every pass, "Chip in" asks for support: a PayNow QR for any
-  amount (which phones can save to Photos, with the number to copy, since a
-  phone can't scan itself), and tick boxes to offer a hand (hosting, cooking,
-  welcoming, planning new experiences, others), which they can change later
-  from the same link
+  amount (saved to Photos through the share sheet on iPhones, or downloaded
+  elsewhere, with the number to copy, since a phone can't scan itself), and
+  tick boxes to offer a hand (hosting, cooking, welcoming, planning new
+  experiences, others), which they can change later from the same link
 - **`/pass/<token>/paynow-qr.png`**: that PayNow QR, for the pass holder only,
   made from the number (or UEN) and reference in `content/paynow.ts`
 - **`/admin`**: organiser dashboard with headcount, dietary breakdown, search,

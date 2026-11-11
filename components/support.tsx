@@ -1,6 +1,13 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { offerHelp, type HelpState } from "@/app/pass/actions";
 import { support } from "@/content/copy";
 
@@ -16,6 +23,20 @@ export type PayNowDetails = {
 };
 
 const OTHER = support.help.options[support.help.options.length - 1];
+
+const noSubscribe = () => () => {};
+/** True once React has hydrated; false in the server render. */
+const useHydrated = () => useSyncExternalStore(noSubscribe, () => true, () => false);
+
+/**
+ * iPhones and iPads (which can say they're Macs). Their share sheet's "Save
+ * Image" puts the QR in Photos, where banking apps look; a download would
+ * land in Files. Elsewhere, Android included, a download is where gallery
+ * pickers look.
+ */
+const savesToPhotosBySharing = () =>
+  /iP(hone|ad|od)/.test(navigator.userAgent) ||
+  (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const QR_FILE = "backyard-paynow-qr.png";
 
 /** "cooking, welcoming and “a DJ set”": what they offered, for the thank-you. */
@@ -37,16 +58,14 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
   // for a fresh tap, as the failed share may have used this one up.
   const [shareFailed, setShareFailed] = useState(false);
   const copyTimer = useRef<number | undefined>(undefined);
-  // On phones, "Save" opens the share sheet, whose "Save Image" puts the QR in
-  // Photos; a download would land in Files on iPhones, out of the banking
-  // app's reach. Sharing must start in the tap itself, so the file is
-  // fetched ahead.
+  // On iPhones, "Save" opens the share sheet (see savesToPhotosBySharing).
+  // Sharing must start in the tap itself, so the file is fetched ahead.
   const qrFile = useRef<File | null>(null);
   // A share sheet is open. Another tap meanwhile would be refused
   // (InvalidStateError), which isn't sharing failing.
   const sharing = useRef(false);
   useEffect(() => {
-    if (!window.matchMedia("(pointer: coarse)").matches || !navigator.canShare) return;
+    if (!savesToPhotosBySharing() || !navigator.canShare) return;
     let live = true;
     fetch(qr)
       .then((r) => (r.ok ? r.blob() : null))
@@ -175,6 +194,18 @@ export function Support({
   const [ticked, setTicked] = useState<string[]>(saved.helpWith ?? []);
   const [note, setNote] = useState(saved.helpNote ?? "");
   const [hint, setHint] = useState("");
+  const hydrated = useHydrated();
+  const form = useRef<HTMLFormElement>(null);
+  // Boxes ticked (or a note typed) before the page came alive are in the
+  // form but not yet in React's state: take them from the form.
+  useEffect(() => {
+    if (!form.current) return;
+    const data = new FormData(form.current);
+    const boxes = data.getAll("helpWith").map(String);
+    const typed = data.get("helpNote");
+    if (boxes.length) setTicked(support.help.options.filter((o) => boxes.includes(o)));
+    if (typeof typed === "string" && typed) setNote(typed);
+  }, []);
   // The reply whose error the guest has moved on from (by editing or retrying).
   const [errorSeen, setErrorSeen] = useState<HelpState | null>(null);
   const clearErrors = () => {
@@ -269,17 +300,19 @@ export function Support({
           // Submitted by hand rather than through `action`, which resets the
           // form after a reply and would put the boxes back behind React.
           <form
+            ref={form}
             className="mt-1"
             onSubmit={(e) => {
               e.preventDefault();
-              if (ticked.length === 0 && !saved.helpWith) {
+              // What the form holds, which is what's sent.
+              const answers = new FormData(e.currentTarget);
+              if (answers.getAll("helpWith").length === 0 && !saved.helpWith) {
                 setHint(support.help.pickOne);
                 return;
               }
               clearErrors();
               submitter.current =
                 document.activeElement instanceof HTMLElement ? document.activeElement : null;
-              const answers = new FormData(e.currentTarget);
               startTransition(() => dispatch(answers));
             }}
           >
@@ -331,9 +364,11 @@ export function Support({
               </label>
             )}
             <div className="mt-4 flex flex-wrap items-center gap-3">
+              {/* Off until the page is alive: before then, the browser would
+                  submit the form itself and nothing would be saved. */}
               <button
                 type="submit"
-                disabled={pending}
+                disabled={pending || !hydrated}
                 className="btn btn-primary px-5 py-3 text-sm"
               >
                 {pending ? "Saving…" : withdrawing ? "Take back my offer" : support.help.button}
