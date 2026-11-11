@@ -53,11 +53,12 @@ function describe({ helpWith, helpNote }: Offer): string {
  * scan from the photo library) or the number copied.
  */
 function PayNow({ recipient, reference, qr }: PayNowDetails) {
-  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  // The last copy's outcome; a new object per tap, so each restarts the reset.
+  const [copied, setCopied] = useState<{ ok: boolean } | null>(null);
+  const copy = copied ? (copied.ok ? "copied" : "failed") : "idle";
   // Sharing failed (not cancelled): the button downloads instead. It waits
   // for a fresh tap, as the failed share may have used this one up.
   const [shareFailed, setShareFailed] = useState(false);
-  const copyTimer = useRef<number | undefined>(undefined);
   // On iPhones, "Save" opens the share sheet (see savesToPhotosBySharing).
   // Sharing must start in the tap itself, so the file is fetched ahead.
   const qrFile = useRef<File | null>(null);
@@ -80,7 +81,13 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
       live = false;
     };
   }, [qr]);
-  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
+  // Clears the copy feedback. An effect, so a page shown again (Next keeps
+  // pages alive in the background) still clears it.
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
 
   const copyLabel =
     copy === "copied"
@@ -121,7 +128,7 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
               download={QR_FILE}
               onClick={(e) => {
                 const file = qrFile.current;
-                if (!file) return;
+                if (!file || shareFailed) return;
                 e.preventDefault();
                 if (sharing.current) return;
                 sharing.current = true;
@@ -145,15 +152,10 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
             <button
               type="button"
               onClick={() => {
-                const done = (result: "copied" | "failed") => {
-                  setCopy(result);
-                  window.clearTimeout(copyTimer.current);
-                  copyTimer.current = window.setTimeout(() => setCopy("idle"), 2500);
-                };
-                if (!navigator.clipboard) return done("failed");
+                if (!navigator.clipboard) return setCopied({ ok: false });
                 navigator.clipboard.writeText(recipient.replace(/\s/g, "")).then(
-                  () => done("copied"),
-                  () => done("failed"),
+                  () => setCopied({ ok: true }),
+                  () => setCopied({ ok: false }),
                 );
               }}
               className="btn btn-outline px-4 py-2 text-sm"
