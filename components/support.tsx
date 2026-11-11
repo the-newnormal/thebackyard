@@ -61,10 +61,10 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
   // On iPhones, "Save" opens the share sheet (see savesToPhotosBySharing).
   // Sharing must start in the tap itself, so the file is fetched ahead.
   const qrFile = useRef<File | null>(null);
-  // When the share sheet now open was asked for (ms); 0 if none. Some iOS
-  // versions never settle the share (iOS 14 at all, 15 and early 16 after
-  // "Save Image"), so an open share has to be able to go stale.
-  const sharing = useRef(0);
+  // A share sheet is open (or opening). Taps meanwhile are ignored: another
+  // share would be refused. The Safari versions this site runs on (16.4+,
+  // Next's floor) always settle the share, so this always clears.
+  const sharing = useRef(false);
   useEffect(() => {
     if (!savesToPhotosBySharing() || !navigator.canShare) return;
     let live = true;
@@ -123,29 +123,18 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
                 const file = qrFile.current;
                 if (!file) return;
                 e.preventDefault();
-                // Sharing didn't work here: the next tap downloads instead.
-                const fallBack = () => {
-                  sharing.current = 0;
-                  qrFile.current = null;
-                  setShareFailed(true);
-                };
-                if (sharing.current) {
-                  // Within a second it's a double tap. Later, the sheet (which
-                  // covers the page) is gone, but its share never settled.
-                  if (Date.now() - sharing.current > 1000) fallBack();
-                  return;
-                }
-                sharing.current = Date.now();
+                if (sharing.current) return;
+                sharing.current = true;
                 navigator.share({ files: [file] }).then(
                   () => {
-                    sharing.current = 0;
+                    sharing.current = false;
                   },
                   (err: unknown) => {
-                    sharing.current = 0;
-                    // Cancelled. (InvalidStateError, an earlier share still
-                    // counted as open, can only be one that never settled.)
+                    sharing.current = false;
                     if (err instanceof DOMException && err.name === "AbortError") return;
-                    fallBack();
+                    // Sharing didn't work here: the next tap downloads instead.
+                    qrFile.current = null;
+                    setShareFailed(true);
                   },
                 );
               }}
