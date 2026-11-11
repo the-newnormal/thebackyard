@@ -97,7 +97,13 @@ function PayNow({ recipient, reference, qr }: PayNowDetails) {
                 const file = qrFile.current;
                 if (!file) return;
                 e.preventDefault();
-                navigator.share({ files: [file] }).catch(() => {});
+                const link = e.currentTarget;
+                navigator.share({ files: [file] }).catch((err: unknown) => {
+                  if (err instanceof DOMException && err.name === "AbortError") return;
+                  // Sharing failed here: download it instead, now and next time.
+                  qrFile.current = null;
+                  link.click();
+                });
               }}
               className="btn btn-outline px-4 py-2 text-sm"
             >
@@ -154,6 +160,12 @@ export function Support({
   const [ticked, setTicked] = useState<string[]>(saved.helpWith ?? []);
   const [note, setNote] = useState(saved.helpNote ?? "");
   const [hint, setHint] = useState("");
+  // The reply whose error the guest has moved on from (by editing or retrying).
+  const [errorSeen, setErrorSeen] = useState<HelpState | null>(null);
+  const clearErrors = () => {
+    setHint("");
+    setErrorSeen(state);
+  };
   // A save closes the form and shows what's saved now.
   const [shownFor, setShownFor] = useState(state);
   if (shownFor !== state) {
@@ -185,7 +197,7 @@ export function Support({
   const showForm = editing || !saved.helpWith;
   const withdrawing = ticked.length === 0 && Boolean(saved.helpWith);
   const withdrawn = state.saved && !state.saved.helpWith;
-  const error = hint || state.error;
+  const error = hint || (state !== errorSeen ? state.error : undefined);
 
   return (
     <section
@@ -224,7 +236,7 @@ export function Support({
             onClick={() => {
               setTicked(saved.helpWith ?? []);
               setNote(saved.helpNote ?? "");
-              setHint("");
+              clearErrors();
               setEditing(true);
               focusNext.current = "first";
             }}
@@ -244,12 +256,12 @@ export function Support({
                 setHint(support.help.pickOne);
                 return;
               }
-              setHint("");
+              clearErrors();
               const answers = new FormData(e.currentTarget);
               startTransition(() => dispatch(answers));
             }}
           >
-            <fieldset>
+            <fieldset disabled={pending}>
               <legend className="text-muted">{support.help.body}</legend>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {support.help.options.map((option, i) => (
@@ -264,7 +276,7 @@ export function Support({
                       value={option}
                       checked={ticked.includes(option)}
                       onChange={(e) => {
-                        setHint("");
+                        clearErrors();
                         setTicked((t) =>
                           e.target.checked ? [...t, option] : t.filter((o) => o !== option),
                         );
@@ -284,9 +296,13 @@ export function Support({
                 </span>
                 <input
                   name="helpNote"
+                  disabled={pending}
                   maxLength={200}
                   value={note}
-                  onChange={(e) => setNote(e.target.value)}
+                  onChange={(e) => {
+                    clearErrors();
+                    setNote(e.target.value);
+                  }}
                   placeholder="e.g. photography, music, clean-up"
                   className="field"
                 />
@@ -303,10 +319,11 @@ export function Support({
               {editing && (
                 <button
                   type="button"
+                  disabled={pending}
                   onClick={() => {
                     setTicked(saved.helpWith ?? []);
                     setNote(saved.helpNote ?? "");
-                    setHint("");
+                    clearErrors();
                     setEditing(false);
                     focusNext.current = "change";
                   }}

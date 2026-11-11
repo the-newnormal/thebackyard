@@ -240,7 +240,7 @@ function Row({
           {r.heardFrom && <span className="text-muted"> · via {heardLabel[r.heardFrom]}</span>}
         </p>
         {r.helpWith && (
-          <p className="mt-1 text-sm">
+          <p className="mt-1 text-sm [overflow-wrap:anywhere]">
             <span className="font-semibold text-forest">Can help:</span> {r.helpWith.join(", ")}
             {r.helpNote && <span className="text-muted"> · “{r.helpNote}”</span>}
           </p>
